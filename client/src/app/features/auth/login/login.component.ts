@@ -34,7 +34,7 @@ export class LoginComponent implements OnInit {
   portalShortcuts: PortalShortcut[] = [
     { slug: 'lm', name: 'LM Portal', description: 'Ladies Ministries Access Portal', icon: 'heart-handshake', colorClass: 'bg-purple-500/80' },
     { slug: 'youth', name: 'Youth Portal', description: 'Youth Ministry Access Portal', icon: 'users-round', colorClass: 'bg-blue-500/80' },
-    { slug: 'amm', name: 'AMM Portal', description: 'Adult Men Ministry Access Portal', icon: 'user-plus', colorClass: 'bg-green-600/80' }
+    { slug: 'amm', name: 'AMM Portal', description: 'Apostolic Men Ministry Access Portal', icon: 'user-plus', colorClass: 'bg-green-600/80' }
   ];
 
   constructor(

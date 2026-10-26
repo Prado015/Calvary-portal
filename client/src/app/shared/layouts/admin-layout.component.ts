@@ -19,7 +19,7 @@ export const ADMIN_NAV: { key: string; label: string; icon: string; path: string
 ];
 
 @Component({
-  sele~or: 'app-admin-layout',
+  selector: 'app-admin-layout',
   standalone: true,
   imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive, IconComponent],
   template: `

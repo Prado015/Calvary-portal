@@ -5,6 +5,10 @@ const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
 
+// Behind Render's proxy (and Vercel's rewrite) the real client IP arrives in X-Forwarded-For.
+// Without this, rate limiting would treat every visitor as one IP.
+app.set('trust proxy', 1);
+
 app.use(cors({ origin: process.env.FRONTEND_ORIGIN, credentials: true }));
 app.use(express.json());
 

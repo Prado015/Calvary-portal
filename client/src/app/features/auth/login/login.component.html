@@ -76,7 +76,7 @@
               class="w-full appearance-none bg-navy-input border border-brand-border rounded-brand text-brand-text text-sm py-3 pl-11 pr-10 outline-none focus:border-gold/50"
             >
               <option value="">Choose your department</option>
-              <option value="__admin__">Admin / Head Usher</option>
+              <option value="__admin__">Admin</option>
               <option *ngFor="let d of departments" [value]="d.slug">{{ d.name }}</option>
             </select>
             <app-icon name="chevron-down" [size]="16" extraClass="absolute right-4 text-brand-muted pointer-events-none"></app-icon>
@@ -96,17 +96,30 @@
         <div class="h-px bg-brand-border flex-1"></div>
       </div>
 
+      <!-- Portal shortcuts: each card uses a background photo named after its slug
+           (portals/lm.jpg, portals/youth.jpg, portals/amm.jpg), placed next to ctclogo.jpg -->
       <div class="flex gap-3">
         <button
           *ngFor="let p of portalShortcuts"
+          type="button"
           (click)="handlePortalClick(p.slug)"
-          class="flex-1 bg-navy-input border border-brand-border rounded-brand p-4 text-left hover:border-gold/40 transition-colors"
+          class="group relative flex-1 min-h-[170px] overflow-hidden bg-navy-input border border-brand-border rounded-brand p-4 text-left hover:border-gold/60 transition-colors"
         >
-          <div [class]="'w-9 h-9 rounded-lg flex items-center justify-center mb-3 ' + p.colorClass">
-            <app-icon [name]="p.icon" [size]="18" extraClass="text-white"></app-icon>
+          <!-- background photo (zooms slightly on hover) -->
+          <div
+            class="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-110"
+           [style.background-image]="'url(' + ({ lm: 'Ladies', youth: 'Youth', amm: 'Amm' }[p.slug] || 'ctclogo') + '.jpg)'"
+          ></div>
+          <!-- dark gradient so the text stays readable on any photo -->
+          <div class="absolute inset-0 bg-gradient-to-t from-navy/95 via-navy/70 to-navy/30 group-hover:from-navy/90 transition-colors"></div>
+
+          <div class="relative z-10 h-full flex flex-col justify-end">
+            <div [class]="'w-9 h-9 rounded-lg flex items-center justify-center mb-3 shadow-lg ' + p.colorClass">
+              <app-icon [name]="p.icon" [size]="18" extraClass="text-white"></app-icon>
+            </div>
+            <p class="font-semibold text-sm text-white">{{ p.name }}</p>
+            <p class="text-xs text-gray-200 mt-0.5">{{ p.description }}</p>
           </div>
-          <p class="font-semibold text-sm text-brand-text">{{ p.name }}</p>
-          <p class="text-xs text-brand-muted mt-0.5">{{ p.description }}</p>
         </button>
       </div>
 
