@@ -1,0 +1,118 @@
+<div class="min-h-screen flex items-center justify-center bg-navy px-4 py-8">
+  <div class="w-full max-w-5xl grid md:grid-cols-2 gap-0 rounded-2xl overflow-hidden border border-brand-border">
+
+    <!-- Left branding panel -->
+    <div class="hidden md:flex flex-col items-center justify-center bg-navy px-10 py-12 text-center relative">
+      <div class="w-24 h-24 rounded-2xl border-2 border-gold/35 shadow-lg overflow-hidden flex items-center justify-center bg-navy-card mb-6">
+        <img src='ctclogo.jpg' alt="Calvary Tabernacle" class="w-full h-full object-cover" onerror="this.style.display='none'" />
+      </div>
+      <h1 class="font-display text-3xl font-bold leading-tight">
+        <span class="text-white">CALVARY</span><br />
+        <span class="text-white tracking-widest">TABERNACLE</span>
+      </h1>
+      <p class="mt-3 text-gold-light text-xs font-semibold tracking-[2px] uppercase">Ministry Management System</p>
+      <span class="mt-2 inline-block px-2.5 py-1 text-[11px] font-semibold rounded bg-navy-card border border-gold/30 text-gold-light">Portal</span>
+      <p class="mt-6 text-brand-muted text-sm max-w-xs">One Church. One System.<br />Many Ministries. United in Christ.</p>
+
+      <div class="flex gap-3 mt-8">
+        <div *ngFor="let m of quickModules" class="w-16 flex flex-col items-center gap-2">
+          <div class="w-12 h-12 rounded-xl bg-navy-card border border-brand-border flex items-center justify-center">
+            <app-icon [name]="m.icon" [size]="18" extraClass="text-gold-light"></app-icon>
+          </div>
+          <span class="text-[11px] text-brand-muted text-center">{{ m.label }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right sign-in panel -->
+    <div class="bg-navy-card px-8 py-10 md:px-12 md:py-12">
+      <div class="w-14 h-14 mx-auto rounded-full bg-navy-input flex items-center justify-center mb-5">
+        <app-icon name="lock" [size]="22" extraClass="text-gold-light"></app-icon>
+      </div>
+      <h2 class="text-center text-2xl font-bold text-white mb-1">Welcome!</h2>
+      <p class="text-center text-brand-muted text-sm mb-8">Sign in to access your ministry portal</p>
+
+      <form (ngSubmit)="handleSubmit()" #loginForm="ngForm">
+        <div class="mb-[18px]">
+          <label class="block text-[11px] font-semibold tracking-[1.2px] uppercase text-gold-light mb-2">Email or Username</label>
+          <div class="relative flex items-center">
+            <app-icon name="user" [size]="16" extraClass="absolute left-4 text-brand-muted pointer-events-none"></app-icon>
+            <input
+              type="text" placeholder="Enter email or username" name="email" required
+              [(ngModel)]="form.email"
+              class="w-full bg-navy-input border border-brand-border rounded-brand text-brand-text text-sm py-3 pl-11 pr-4 outline-none focus:border-gold/50 transition-colors"
+            />
+          </div>
+        </div>
+
+        <div class="mb-[18px]">
+          <label class="block text-[11px] font-semibold tracking-[1.2px] uppercase text-gold-light mb-2">Password</label>
+          <div class="relative flex items-center">
+            <app-icon name="lock" [size]="16" extraClass="absolute left-4 text-brand-muted pointer-events-none"></app-icon>
+            <input
+              [type]="showPassword ? 'text' : 'password'" placeholder="Enter your password" name="password" required
+              [(ngModel)]="form.password"
+              class="w-full bg-navy-input border border-brand-border rounded-brand text-brand-text text-sm py-3 pl-11 pr-11 outline-none focus:border-gold/50 transition-colors"
+            />
+            <button type="button" (click)="showPassword = !showPassword" class="absolute right-4 text-brand-muted">
+              <app-icon [name]="showPassword ? 'eye-off' : 'eye'" [size]="16"></app-icon>
+            </button>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between mb-5 text-sm">
+          <label class="flex items-center gap-2 text-brand-muted cursor-pointer">
+            <input type="checkbox" class="accent-gold" /> Remember me
+          </label>
+          <a href="javascript:void(0)" class="text-gold-light hover:underline">Forgot password?</a>
+        </div>
+
+        <div class="mb-6">
+          <label class="block text-[11px] font-semibold tracking-[1.2px] uppercase text-gold-light mb-2">Select Your Ministry / Department</label>
+          <div class="relative flex items-center">
+            <app-icon name="landmark" [size]="16" extraClass="absolute left-4 text-brand-muted pointer-events-none"></app-icon>
+            <select
+              [(ngModel)]="form.department" name="department"
+              class="w-full appearance-none bg-navy-input border border-brand-border rounded-brand text-brand-text text-sm py-3 pl-11 pr-10 outline-none focus:border-gold/50"
+            >
+              <option value="">Choose your department</option>
+              <option value="__admin__">Admin / Head Usher</option>
+              <option *ngFor="let d of departments" [value]="d.slug">{{ d.name }}</option>
+            </select>
+            <app-icon name="chevron-down" [size]="16" extraClass="absolute right-4 text-brand-muted pointer-events-none"></app-icon>
+          </div>
+        </div>
+
+        <p *ngIf="error" class="text-brand-error text-sm text-center mb-4">{{ error }}</p>
+
+        <app-button type="submit" [disabled]="loading || !loginForm.valid">
+          <app-icon name="lock" [size]="16"></app-icon> {{ loading ? 'Signing in…' : 'LOGIN' }}
+        </app-button>
+      </form>
+
+      <div class="flex items-center gap-3 my-6">
+        <div class="h-px bg-brand-border flex-1"></div>
+        <span class="text-xs text-brand-muted">OR</span>
+        <div class="h-px bg-brand-border flex-1"></div>
+      </div>
+
+      <div class="flex gap-3">
+        <button
+          *ngFor="let p of portalShortcuts"
+          (click)="handlePortalClick(p.slug)"
+          class="flex-1 bg-navy-input border border-brand-border rounded-brand p-4 text-left hover:border-gold/40 transition-colors"
+        >
+          <div [class]="'w-9 h-9 rounded-lg flex items-center justify-center mb-3 ' + p.colorClass">
+            <app-icon [name]="p.icon" [size]="18" extraClass="text-white"></app-icon>
+          </div>
+          <p class="font-semibold text-sm text-brand-text">{{ p.name }}</p>
+          <p class="text-xs text-brand-muted mt-0.5">{{ p.description }}</p>
+        </button>
+      </div>
+
+      <p class="text-center text-xs text-brand-muted mt-8">
+        Need help? <a href="javascript:void(0)" class="text-gold-light hover:underline">Contact the system administrator.</a>
+      </p>
+    </div>
+  </div>
+</div>
