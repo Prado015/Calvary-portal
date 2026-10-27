@@ -3,8 +3,10 @@
 //   cd server
 //   npm install
 //   # put the file at server/data/masterlist.xlsx (or pass --file=path)
-//   npm run import:masterlist -- --dry     # preview only, nothing is written
-//   npm run import:masterlist              # real import
+//   npm run import:masterlist -- --dry                 # preview only, nothing is written
+//   npm run import:masterlist                          # import; existing members are UPDATED from the sheet
+//   npm run import:masterlist -- --new-only --dry      # preview: how many names are NEW vs already in the database
+//   npm run import:masterlist -- --new-only            # add ONLY new names; anyone already in the database is skipped untouched
 //
 // Sheets read: LM, AMM, Youth, Childrens. Safe to re-run: members are matched on
 // department + last name + first name + middle initial and updated, not duplicated.
@@ -155,6 +157,7 @@ function summarize(people) {
 async function main() {
   const args = process.argv.slice(2);
   const dry = args.includes('--dry');
+  const newOnly = args.includes('--new-only');
   const fileArg = args.find((a) => a.startsWith('--file='));
   const file = path.resolve(fileArg ? fileArg.slice(7) : path.join(__dirname, '..', 'data', 'masterlist.xlsx'));
 
@@ -163,7 +166,7 @@ async function main() {
   console.log(`👥  Parsed ${people.length} people`);
   console.dir(summarize(people), { depth: 4 });
   if (warnings.length) { console.log(`⚠️   ${warnings.length} warning(s):`); warnings.forEach((w) => console.log('   - ' + w)); }
-  if (dry) { console.log('\nDry run — nothing written.'); return; }
+  if (dry && !newOnly) { console.log('\nDry run — nothing written.'); return; }
 
   const mongoose = require('mongoose');
   const connectDB = require('../config/db');
@@ -172,6 +175,28 @@ async function main() {
   const Member = require('../models/Member');
 
   await connectDB();
+
+  const esc = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // "Already in the database" = same first + last name (any department, case-insensitive)
+  const nameMatch = (d) => ({
+    lastName: new RegExp(`^${esc(d.lastName)}$`, 'i'),
+    firstName: new RegExp(`^${esc(d.firstName)}$`, 'i')
+  });
+
+  if (dry) { // --dry --new-only: read-only check against the database
+    const fresh = [];
+    let skippedCount = 0;
+    for (const p of people) {
+      if (await Member.exists(nameMatch(p.data))) skippedCount++;
+      else fresh.push(p);
+    }
+    console.log(`\n🔎  Already in the database (would be skipped): ${skippedCount}`);
+    console.log(`➕  New names (would be added): ${fresh.length}`);
+    fresh.slice(0, 100).forEach((p) => console.log(`   + ${p.deptName}: ${p.data.lastName}, ${p.data.firstName} ${p.data.middleInitial} (${p.cellgroupName || 'no cellgroup'}, ${p.data.status})`));
+    console.log('\nDry run — nothing written.');
+    await mongoose.disconnect();
+    return;
+  }
 
   // Departments (match by slug; create only if missing)
   const depts = {};
@@ -198,12 +223,15 @@ async function main() {
     counter = Math.max(counter, parseInt(m.memberId.slice(4), 10) || 0);
   }
 
-  const stats = { created: 0, updated: 0, cellgroupsCreated: 0, failed: 0 };
+  const stats = { created: 0, updated: 0, skipped: 0, cellgroupsCreated: 0, failed: 0 };
   const cgBefore = await Cellgroup.countDocuments();
   const leaders = new Map(); // cellgroup id -> { leader, assistants:Set }
 
   for (const p of people) {
     try {
+      // --new-only: anyone whose name is already in the database is left completely untouched
+      if (newOnly && (await Member.exists(nameMatch(p.data)))) { stats.skipped++; continue; }
+
       const cg = await getCellgroup(p.slug, p.cellgroupName);
       const fullName = `${p.data.firstName} ${p.data.lastName}`;
       if (cg && ['Leader', 'Assistant Leader'].includes(p.data.cgPosition)) {
@@ -216,11 +244,11 @@ async function main() {
       const doc = { ...p.data, department: depts[p.slug]._id, cellgroup: cg ? cg._id : null };
       const match = {
         department: doc.department,
-        lastName: new RegExp(`^${doc.lastName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
-        firstName: new RegExp(`^${doc.firstName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
+        lastName: new RegExp(`^${esc(doc.lastName)}$`, 'i'),
+        firstName: new RegExp(`^${esc(doc.firstName)}$`, 'i'),
         middleInitial: doc.middleInitial
       };
-      const existing = await Member.findOne(match);
+      const existing = newOnly ? null : await Member.findOne(match);
       if (existing) { Object.assign(existing, doc); await existing.save(); stats.updated++; }
       else { await Member.create({ ...doc, memberId: `MEM-${String(++counter).padStart(5, '0')}` }); stats.created++; }
     } catch (err) {
