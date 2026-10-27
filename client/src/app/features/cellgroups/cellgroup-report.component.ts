@@ -45,7 +45,7 @@ interface MonthRow { month: number; name: string; cur: FundRecord | null; prev: 
           <div class="w-36"><app-button variant="ghost" (click)="exportCsv()">Export CSV</app-button></div>
         </div>
       </app-page-header>
-e
+
       <!-- Leaders -->
       <div class="bg-navy-card border border-brand-border rounded-brand p-5 mb-4 flex flex-wrap items-start justify-between gap-4">
         <div class="grid sm:grid-cols-2 gap-x-10 gap-y-2 text-sm">
