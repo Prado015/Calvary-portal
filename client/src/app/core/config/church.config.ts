@@ -7,6 +7,6 @@ export const CHURCH = {
 
   // Logos in the report header. Use any image kept in the client/public folder (just the file name),
   // or '' for none. Reports can also use a different logo picked in the Export PDF window.
-  logoLeft: 'ctc_logo.png',
+  logoLeft: 'ctclogo.jpg',
   logoRight: ''
 };
