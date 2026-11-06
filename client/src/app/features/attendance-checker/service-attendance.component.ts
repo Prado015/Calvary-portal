@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { AttendanceBoardService, BoardMonth, BoardMember, Occurrence, SaveColumn } from '../../core/services/attendance-board.service';
 import { DepartmentService, DepartmentRecord } from '../../core/services/department.service';
 import { CellgroupService, CellgroupRecord } from '../../core/services/cellgroup.service';
-import { AuthService } from '../../core/services/auth.service';
+import { AuthService, ROLE_LABELS } from '../../core/services/auth.service';
 import { CHURCH } from '../../core/config/church.config';
 import { buildAttendancePdf, loadLogo, logoFromFile } from '../../core/utils/attendance-pdf';
 import { MONTH_NAMES, localIso, shiftMonth, dayOf, weekdayShort } from '../../core/utils/dates';
@@ -487,7 +487,7 @@ export class ServiceAttendanceComponent implements OnChanges {
       // Prepared by the assistant leader, noted by the leader and the pastor
       ? { ...base, preparedName: cg.assistantLeaders?.[0] || '', preparedTitle: 'Assistant Cellgroup Leader', notedName: cg.leaderName || '', notedTitle: 'Cellgroup Leader' }
       // Whole ministry (no single leader): prepared by whoever is signed in
-      : { ...base, preparedName: u ? `${u.firstName} ${u.lastName}` : '', preparedTitle: u?.roleLabel || '', notedName: '', notedTitle: '' };
+      : { ...base, preparedName: u ? `${u.firstName} ${u.lastName}` : '', preparedTitle: u?.roleLabel || (u ? ROLE_LABELS[u.role] : '') || '', notedName: '', notedTitle: '' };
     this.pdfOpen = true;
     if (!this.customLogo) loadLogo(CHURCH.logoLeft).then((l) => (this.logoPreview = l));
   }

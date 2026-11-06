@@ -6,7 +6,15 @@ export interface Department { id: string; name: string; slug: string; }
 export interface CurrentUser {
   id: string; firstName: string; lastName: string; email: string;
   role: string; status: string; department: Department | null;
+  roleLabel?: string;                              // optional: only if the server sends it
+  cellgroup?: { id: string; name?: string } | null; // set for cellgroup leaders
 }
+
+// Display names for roles (same labels as the Users page).
+export const ROLE_LABELS: Record<string, string> = {
+  super_admin: 'Super Admin', head_usher: 'Head Usher', usher_secretary: 'Secretary / Portal Manager',
+  usher: 'Usher', counter_staff: 'Counter Staff', viewer: 'Viewer'
+};
 
 // Angular equivalent of the React AuthContext — a signal-based service
 // instead of context + hooks, same responsibilities: hold the user,
