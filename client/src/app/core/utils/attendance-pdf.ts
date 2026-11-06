@@ -36,7 +36,11 @@ const safeName = (s: string) => s.replace(/[^\w\- ]+/g, '').trim().replace(/\s+/
 // jsPDF is loaded only when this runs, so it never slows down the rest of the app.
 export async function buildAttendancePdf(input: AttendancePdfInput): Promise<{ doc: any; filename: string }> {
   const [{ jsPDF }, tableModule] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
-  const autoTable: any = (tableModule as any).default || (tableModule as any).autoTable;
+  // The production bundler can wrap this package differently from `ng serve`, so `default`
+  // may be an object instead of the function. Pick whichever export is really callable.
+  const mod: any = tableModule;
+  const autoTable: any = [mod.autoTable, mod.default, mod.default?.autoTable, mod.default?.default].find((f) => typeof f === 'function');
+  if (!autoTable) throw new Error('jspdf-autotable did not load as a function');
 
   const doc: any = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
   const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
