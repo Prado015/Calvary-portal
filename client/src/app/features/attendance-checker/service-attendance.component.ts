@@ -14,7 +14,7 @@ import { ConfirmationModalComponent } from '../../shared/components/modals/confi
 import { ButtonComponent } from '../../shared/components/ui/button.component';
 
 interface Group { typeId: string; name: string; color: string; items: Occurrence[]; }
-
+       
 // Header colours per service colour (full class names so Tailwind can see them).
 const HEAD: Record<string, string> = {
   gold: 'bg-yellow-900/40 text-yellow-300', teal: 'bg-teal-900/40 text-teal-300', blue: 'bg-blue-900/40 text-blue-300',

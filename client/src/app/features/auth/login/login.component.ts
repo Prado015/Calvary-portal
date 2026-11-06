@@ -23,6 +23,20 @@ export class LoginComponent implements OnInit {
   error = '';
   loading = false;
 
+  // ---- self-registration (creates a pending account for an admin to approve)
+  registerOpen = false;
+  regLoading = false;
+  regError = '';
+  regDone = '';
+  regShowPassword = false;
+  reg = { firstName: '', lastName: '', email: '', password: '', confirm: '', role: 'usher_secretary', department: '' };
+  regRoles = [
+    { value: 'usher_secretary', label: 'Secretary / Portal Manager' },
+    { value: 'usher', label: 'Usher' },
+    { value: 'counter_staff', label: 'Counter Staff' },
+    { value: 'viewer', label: 'Viewer' }
+  ];
+
   quickModules = [
     { icon: 'user', label: 'Members' },
     { icon: 'users', label: 'Visitors' },
@@ -53,6 +67,23 @@ export class LoginComponent implements OnInit {
 
   handlePortalClick(slug: string): void {
     this.form.department = slug;
+  }
+
+  openRegister(): void {
+    this.reg = { firstName: '', lastName: '', email: '', password: '', confirm: '', role: 'usher_secretary', department: '' };
+    this.regError = ''; this.regDone = ''; this.registerOpen = true;
+  }
+
+  handleRegister(): void {
+    this.regError = '';
+    if (this.reg.password.length < 8) { this.regError = 'Password must be at least 8 characters.'; return; }
+    if (this.reg.password !== this.reg.confirm) { this.regError = 'The two passwords do not match.'; return; }
+    this.regLoading = true;
+    const { confirm, ...payload } = this.reg;
+    this.auth.signup({ ...payload, department: payload.department || null }).subscribe({
+      next: (r) => { this.regLoading = false; this.regDone = r.message; },
+      error: (e) => { this.regLoading = false; this.regError = e.error?.message || 'Could not send your request. Please try again.'; }
+    });
   }
 
   handleSubmit(): void {

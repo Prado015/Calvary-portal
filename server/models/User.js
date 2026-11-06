@@ -11,7 +11,8 @@ const UserSchema = new mongoose.Schema({
     enum: ['super_admin', 'head_usher', 'usher_secretary', 'usher', 'counter_staff', 'viewer'],
     default: 'usher'
   },
-  status: { type: String, enum: ['active', 'inactive'], default: 'active' },
+  // 'pending' = signed up on the login page, waiting for an admin to approve (cannot log in yet).
+  status: { type: String, enum: ['active', 'inactive', 'pending'], default: 'active' },
   // Which ministry this account belongs to. null = ushering/admin, unscoped.
   department: { type: mongoose.Schema.Types.ObjectId, ref: 'Department', default: null }
 }, { timestamps: true });

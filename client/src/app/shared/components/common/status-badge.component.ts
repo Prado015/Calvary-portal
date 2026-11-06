@@ -14,6 +14,7 @@ const STYLES: Record<string, string> = {
   sunday_goer: 'bg-yellow-400/15 text-yellow-300',
   absent: 'bg-brand-error/15 text-brand-error',
   inactive: 'bg-brand-error/15 text-brand-error',
+  pending: 'bg-gold/15 text-gold-light',
   excused: 'bg-brand-muted/20 text-brand-muted'
 };
 

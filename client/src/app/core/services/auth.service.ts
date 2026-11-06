@@ -42,6 +42,11 @@ export class AuthService {
     );
   }
 
+  /** Public sign-up from the login page. Creates a pending account; nobody is logged in. */
+  signup(payload: { firstName: string; lastName: string; email: string; password: string; role: string; department: string | null }): Observable<{ message: string }> {
+    return this.http.post<{ success: boolean; message: string }>('/api/auth/signup', payload);
+  }
+
   me(): Observable<CurrentUser> {
     return this.http.get<{ success: boolean; user: CurrentUser }>('/api/auth/me').pipe(
       tap((res) => {

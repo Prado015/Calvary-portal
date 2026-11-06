@@ -90,6 +90,12 @@
         </app-button>
       </form>
 
+      <!-- Self-registration: creates a pending account an admin must approve -->
+      <p class="text-center text-sm text-brand-muted mt-5">
+        New here?
+        <button type="button" (click)="openRegister()" class="text-gold-light font-semibold hover:underline">Register for an account</button>
+      </p>
+
       <div class="flex items-center gap-3 my-6">
         <div class="h-px bg-brand-border flex-1"></div>
         <span class="text-xs text-brand-muted">OR</span>
@@ -127,5 +133,74 @@
         Need help? <a href="javascript:void(0)" class="text-gold-light hover:underline">Contact the system administrator.</a>
       </p>
     </div>
+  </div>
+</div>
+
+<!-- Register modal -->
+<div *ngIf="registerOpen" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+  <div class="bg-navy-card border border-brand-border rounded-brand p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+
+    <ng-container *ngIf="!regDone; else registered">
+      <h3 class="text-white font-bold text-lg mb-1">Register for an account</h3>
+      <p class="text-xs text-brand-muted mb-5">Fill this in and an administrator will approve your account. You can log in once it is approved.</p>
+
+      <form (ngSubmit)="handleRegister()" #regForm="ngForm">
+        <div class="grid grid-cols-2 gap-3 mb-3">
+          <input [(ngModel)]="reg.firstName" name="rFirst" placeholder="First name" required maxlength="60"
+                 class="bg-navy-input border border-brand-border rounded-brand text-sm py-3 px-4 text-brand-text outline-none focus:border-gold/50" />
+          <input [(ngModel)]="reg.lastName" name="rLast" placeholder="Last name" required maxlength="60"
+                 class="bg-navy-input border border-brand-border rounded-brand text-sm py-3 px-4 text-brand-text outline-none focus:border-gold/50" />
+        </div>
+
+        <input [(ngModel)]="reg.email" name="rEmail" type="email" placeholder="Email (used to log in)" required
+               class="w-full mb-3 bg-navy-input border border-brand-border rounded-brand text-sm py-3 px-4 text-brand-text outline-none focus:border-gold/50" />
+
+        <div class="relative mb-3">
+          <input [(ngModel)]="reg.password" name="rPass" [type]="regShowPassword ? 'text' : 'password'" placeholder="Password (min 8 characters)" required minlength="8"
+                 class="w-full bg-navy-input border border-brand-border rounded-brand text-sm py-3 pl-4 pr-11 text-brand-text outline-none focus:border-gold/50" />
+          <button type="button" (click)="regShowPassword = !regShowPassword" class="absolute right-4 top-1/2 -translate-y-1/2 text-brand-muted">
+            <app-icon [name]="regShowPassword ? 'eye-off' : 'eye'" [size]="16"></app-icon>
+          </button>
+        </div>
+        <input [(ngModel)]="reg.confirm" name="rConfirm" [type]="regShowPassword ? 'text' : 'password'" placeholder="Confirm password" required
+               class="w-full mb-4 bg-navy-input border border-brand-border rounded-brand text-sm py-3 px-4 text-brand-text outline-none focus:border-gold/50" />
+
+        <label class="block text-[11px] font-semibold tracking-[1.2px] uppercase text-gold-light mb-2">Your position</label>
+        <select [(ngModel)]="reg.role" name="rRole"
+                class="w-full mb-4 bg-navy-input border border-brand-border rounded-brand text-sm py-3 px-4 text-brand-text outline-none">
+          <option *ngFor="let r of regRoles" [value]="r.value">{{ r.label }}</option>
+        </select>
+
+        <label class="block text-[11px] font-semibold tracking-[1.2px] uppercase text-gold-light mb-2">Portal you need access to</label>
+        <select [(ngModel)]="reg.department" name="rDept"
+                class="w-full mb-4 bg-navy-input border border-brand-border rounded-brand text-sm py-3 px-4 text-brand-text outline-none">
+          <option value="">Admin / Ushering (back office)</option>
+          <option *ngFor="let d of departments" [value]="d._id">{{ d.name }} portal</option>
+        </select>
+
+        <p *ngIf="regError" class="text-brand-error text-sm mb-3">{{ regError }}</p>
+
+        <div class="flex gap-3">
+          <button type="button" (click)="registerOpen = false"
+                  class="flex-1 h-11 rounded-brand border border-brand-border text-sm text-brand-muted hover:text-white">Cancel</button>
+          <button type="submit" [disabled]="regLoading || !regForm.valid"
+                  class="flex-1 h-11 rounded-brand bg-gold text-navy font-semibold text-sm disabled:opacity-50">
+            {{ regLoading ? 'Sending…' : 'Register' }}
+          </button>
+        </div>
+      </form>
+    </ng-container>
+
+    <ng-template #registered>
+      <div class="text-center py-4">
+        <div class="w-14 h-14 mx-auto rounded-full bg-brand-green/15 flex items-center justify-center mb-4">
+          <app-icon name="clipboard-check" [size]="24" extraClass="text-brand-green"></app-icon>
+        </div>
+        <h3 class="text-white font-bold text-lg mb-2">Request sent</h3>
+        <p class="text-sm text-brand-muted mb-6">{{ regDone }}</p>
+        <button type="button" (click)="registerOpen = false"
+                class="w-full h-11 rounded-brand bg-gold text-navy font-semibold text-sm">Back to login</button>
+      </div>
+    </ng-template>
   </div>
 </div>

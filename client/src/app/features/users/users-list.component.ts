@@ -28,9 +28,15 @@ const blank = () => ({ firstName: '', lastName: '', email: '', password: '', rol
     </app-page-header>
 
     <ng-template #rowActions let-u>
-      <button (click)="toggle(u)" class="text-xs px-3 py-1.5 rounded-lg bg-navy-input text-brand-muted hover:text-gold-light">
-        {{ u.status === 'active' ? 'Deactivate' : 'Activate' }}
-      </button>
+      <ng-container *ngIf="u.status === 'pending'; else normalActions">
+        <button (click)="setStatus(u, 'active')" class="text-xs px-3 py-1.5 mr-2 rounded-lg bg-brand-green/15 text-brand-green hover:bg-brand-green/25">Approve</button>
+        <button (click)="setStatus(u, 'inactive')" class="text-xs px-3 py-1.5 rounded-lg bg-navy-input text-brand-error hover:bg-brand-error/10">Decline</button>
+      </ng-container>
+      <ng-template #normalActions>
+        <button (click)="toggle(u)" class="text-xs px-3 py-1.5 rounded-lg bg-navy-input text-brand-muted hover:text-gold-light">
+          {{ u.status === 'active' ? 'Deactivate' : 'Activate' }}
+        </button>
+      </ng-template>
     </ng-template>
     <app-data-table [columns]="columns" [rows]="users" [loading]="loading" [actionsTemplate]="rowActions"></app-data-table>
 
@@ -96,6 +102,13 @@ export class UsersListComponent implements OnInit {
     this.api.create({ ...this.form, department: this.form.department || null }).subscribe({
       next: () => { this.saving = false; this.formOpen = false; this.form = blank(); this.load(); },
       error: (e) => { this.saving = false; this.error = e.error?.message || 'Could not create user'; }
+    });
+  }
+
+  setStatus(u: any, status: 'active' | 'inactive'): void {
+    this.api.update(u._id, { status }).subscribe({
+      next: () => this.load(),
+      error: (e) => alert(e.error?.message || 'Update failed')
     });
   }
 
