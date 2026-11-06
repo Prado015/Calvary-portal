@@ -530,8 +530,9 @@ export class ServiceAttendanceComponent implements OnChanges {
             });
             doc.save(filename);
             this.pdfOpen = false; this.notice = 'PDF report downloaded.';
-          } catch {
-            this.pdfError = 'Could not make the PDF. Please try again.';
+          } catch (e: any) {
+            console.error('PDF export failed:', e);
+            this.pdfError = `Could not make the PDF: ${e?.message || 'unknown error'}`;
           } finally { this.pdfBusy = false; }
         })();
       },
@@ -555,4 +556,4 @@ export class ServiceAttendanceComponent implements OnChanges {
     });
     downloadCsv(`attendance-${this.year}-${String(this.month).padStart(2, '0')}.csv`, toCsv(head, rows));
   }
-}
+} 
