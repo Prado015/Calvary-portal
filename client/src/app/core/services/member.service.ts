@@ -9,12 +9,17 @@ export interface MemberRecord {
   occupationType?: string; occupationDetail?: string; ministries?: string[];
   cgPosition?: string; ageGroup?: string;
   profilingForm?: boolean; baptizedWater?: boolean; baptizedHolyGhost?: boolean;
+  photoUrl?: string;
   department?: any; cellgroup?: any;
 }
 export interface MemberListResponse { data: MemberRecord[]; total: number; page: number; pages: number; }
 export interface MemberStats {
   total: number; active: number; needsFollowup: number; inactive: number;
   sundayGoer?: number; otherChurch?: number; bibleStudy?: number;
+}
+export interface QrCard {
+  _id: string; memberId: string; firstName: string; lastName: string; photoUrl: string;
+  department: string; cellgroup: string; token: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -39,5 +44,18 @@ export class MemberService {
 
   remove(id: string): Observable<void> {
     return this.http.delete<void>(`/api/members/${id}`);
+  }
+
+  /** `image` is a data URL (data:image/jpeg;base64,...) already shrunk by the browser. */
+  uploadPhoto(id: string, image: string): Observable<string> {
+    return this.http.put<{ data: { photoUrl: string } }>(`/api/members/${id}/photo`, { image }).pipe(map(r => r.data.photoUrl));
+  }
+
+  deletePhoto(id: string): Observable<unknown> {
+    return this.http.delete(`/api/members/${id}/photo`);
+  }
+
+  qrCards(params: Record<string, string>): Observable<QrCard[]> {
+    return this.http.get<{ data: QrCard[] }>('/api/members/qr-cards', { params }).pipe(map(r => r.data));
   }
 }

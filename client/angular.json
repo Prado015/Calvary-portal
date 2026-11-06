@@ -57,7 +57,11 @@
             "styles": [
               "src/styles.css"
             ],
-            "scripts": []
+            "scripts": [],
+            "allowedCommonJsDependencies": [
+              "jsqr",
+              "qrcode"
+            ]
           },
           "configurations": {
             "production": {
@@ -81,7 +85,8 @@
                   "inlineCritical": true
                 },
                 "fonts": false
-              }
+              },
+              "serviceWorker": "ngsw-config.json"
             },
             "development": {
               "optimization": false,

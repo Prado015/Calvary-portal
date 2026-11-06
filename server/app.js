@@ -10,7 +10,7 @@ const app = express();
 app.set('trust proxy', 1);
 
 app.use(cors({ origin: process.env.FRONTEND_ORIGIN, credentials: true }));
-app.use(express.json());
+app.use(express.json({ limit: '1mb' })); // member photos are sent as ~100 KB data URLs
 
 // req.io is read dynamically from app settings (set via app.set('io', io) in
 // server.js) rather than captured at middleware-registration time — this
@@ -27,6 +27,8 @@ app.use('/api/departments',       require('./routes/departments'));
 app.use('/api/cellgroups',        require('./routes/cellgroups'));
 app.use('/api/cellgroup-reports', require('./routes/cellgroupReports'));
 app.use('/api/members',           require('./routes/members'));
+app.use('/api/followup',          require('./routes/followup'));
+app.use('/api/notify',            require('./routes/notify'));
 app.use('/api/member-attendance', require('./routes/memberAttendance'));
 app.use('/api/attendance-board',  require('./routes/attendanceBoard'));
 app.use('/api/service-types',     require('./routes/serviceTypes'));

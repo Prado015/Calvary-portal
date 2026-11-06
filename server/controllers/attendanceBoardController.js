@@ -6,7 +6,7 @@ const Service = require('../models/Service');
 const ServiceType = require('../models/ServiceType');
 const Department = require('../models/Department');
 const MemberAttendance = require('../models/MemberAttendance');
-const { canAccessDepartment } = require('../utils/access');
+const { canAccessDepartment, canAccessMember } = require('../utils/access');
 const { log } = require('../utils/logger');
 const { isIsoDate, weekdayOf, monthDates, monthRange, todayUtc, addDays, sameDayInMonthOffset } = require('../utils/dates');
 
@@ -97,6 +97,9 @@ exports.getMonth = async (req, res, next) => {
 
     const filter = {};
     if (scope.dept) filter.department = scope.dept;
+    if (req.user.cellgroup) filter.cellgroup = req.user.cellgroup; // leaders only see their own cellgroup
+    else if (req.query.cellgroup === 'none') filter.cellgroup = null; // members who have no cellgroup yet
+    else if (req.query.cellgroup && mongoose.isValidObjectId(req.query.cellgroup)) filter.cellgroup = req.query.cellgroup;
     if (req.query.includeInactive !== 'true') filter.status = { $ne: 'inactive' };
     if (req.query.search) {
       const re = new RegExp(escapeRegex(req.query.search), 'i');
@@ -134,7 +137,7 @@ exports.getMemberMonth = async (req, res, next) => {
     if (!mongoose.isValidObjectId(req.params.id)) return bad(res, 'Invalid member id');
     const member = await Member.findById(req.params.id).populate('department', 'name slug').populate('cellgroup', 'name');
     if (!member) return bad(res, 'Member not found', 404);
-    if (!canAccessDepartment(req.user, member.department._id)) return bad(res, 'Forbidden — this member belongs to another ministry', 403);
+    if (!canAccessMember(req.user, member)) return bad(res, 'Forbidden — this member is outside your access', 403);
     const { year, month } = parseYearMonth(req.query);
 
     const types = await visibleTypes(member.department._id);
@@ -208,13 +211,13 @@ exports.save = async (req, res, next) => {
     // 2. Validate every member (exists, in my ministry, belongs to this service)
     const ids = [...new Set(resolved.flatMap((r) => r.o.marks.map((m) => String(m.member))))];
     if (ids.some((id) => !mongoose.isValidObjectId(id))) return bad(res, 'Invalid member id');
-    const members = await Member.find({ _id: { $in: ids } }, 'department');
+    const members = await Member.find({ _id: { $in: ids } }, 'department cellgroup');
     const byId = new Map(members.map((m) => [String(m._id), m]));
     for (const r of resolved) {
       for (const mark of r.o.marks) {
         const m = byId.get(String(mark.member));
         if (!m) return bad(res, 'Unknown member', 404);
-        if (!canAccessDepartment(req.user, m.department)) return bad(res, 'Forbidden — a member belongs to another ministry', 403);
+        if (!canAccessMember(req.user, m)) return bad(res, 'Forbidden — a member is outside your access', 403);
         if (!typeAppliesTo(r.type, m.department)) return bad(res, `${r.type.name} does not apply to that member's ministry`);
         if (r.service && r.service.department && String(r.service.department) !== String(m.department)) return bad(res, 'That meeting belongs to another ministry');
         if (mark.status && !STATUSES.includes(mark.status)) return bad(res, 'Invalid status');

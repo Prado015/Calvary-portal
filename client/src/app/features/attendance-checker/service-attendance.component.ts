@@ -3,6 +3,10 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AttendanceBoardService, BoardMonth, BoardMember, Occurrence, SaveColumn } from '../../core/services/attendance-board.service';
 import { DepartmentService, DepartmentRecord } from '../../core/services/department.service';
+import { CellgroupService, CellgroupRecord } from '../../core/services/cellgroup.service';
+import { AuthService } from '../../core/services/auth.service';
+import { CHURCH } from '../../core/config/church.config';
+import { buildAttendancePdf, loadLogo, logoFromFile } from '../../core/utils/attendance-pdf';
 import { MONTH_NAMES, localIso, shiftMonth, dayOf, weekdayShort } from '../../core/utils/dates';
 import { toCsv, downloadCsv } from '../../core/utils/csv';
 import { IconComponent } from '../../shared/components/icon/icon.component';
@@ -28,10 +32,19 @@ const COUNTED = ['present', 'late'];
   standalone: true,
   imports: [CommonModule, FormsModule, IconComponent, ConfirmationModalComponent, ButtonComponent],
   template: `
-    <div class="relative flex items-center mb-4">
-      <app-icon name="search" [size]="15" extraClass="absolute left-4 text-brand-muted"></app-icon>
-      <input [(ngModel)]="search" (ngModelChange)="applyFilter()" placeholder="Search member…"
-             class="w-full bg-navy-input border border-brand-border rounded-brand text-sm py-2.5 pl-11 pr-4 text-brand-text outline-none" />
+    <div class="flex flex-col sm:flex-row gap-2 mb-4">
+      <div class="relative flex items-center flex-1">
+        <app-icon name="search" [size]="15" extraClass="absolute left-4 text-brand-muted"></app-icon>
+        <input [(ngModel)]="search" (ngModelChange)="applyFilter()" placeholder="Search member…"
+               class="w-full bg-navy-input border border-brand-border rounded-brand text-sm py-2.5 pl-11 pr-4 text-brand-text outline-none" />
+      </div>
+      <!-- Check attendance one cellgroup at a time -->
+      <select *ngIf="departmentId && cellgroups.length" [(ngModel)]="cellgroupId" (ngModelChange)="onCellgroupChange()" [disabled]="lockedCellgroup" name="cellgroupFilter"
+              class="h-[42px] sm:w-60 bg-navy-input border border-brand-border rounded-brand text-sm px-3 text-brand-text disabled:opacity-70">
+        <option value="">All cellgroups</option>
+        <option *ngFor="let c of cellgroups" [value]="c._id">{{ c.name }}</option>
+        <option *ngIf="!lockedCellgroup" value="none">No cellgroup yet</option>
+      </select>
     </div>
 
     <!-- month bar -->
@@ -47,6 +60,7 @@ const COUNTED = ['present', 'late'];
       <button *ngIf="canMark" (click)="confirmClear = true" class="tb tb-red">Clear Attendance</button>
       <button *ngIf="canMark" (click)="copyPrevious()" class="tb" title="Fill empty columns from the previous week's column of the same service">Copy Previous Week</button>
       <button (click)="exportCsv()" class="tb">Export Excel (CSV)</button>
+      <button (click)="openPdf()" class="tb tb-gold">Export PDF Report</button>
       <button *ngIf="canManage && customTypes.length" (click)="openAdd()" class="tb tb-gold">+ Add Meeting Date</button>
     </div>
 
@@ -146,11 +160,60 @@ const COUNTED = ['present', 'late'];
       </form>
     </div>
 
+    <!-- PDF report details -->
+    <div *ngIf="pdfOpen" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <form (ngSubmit)="downloadPdf()" class="bg-navy-card border border-brand-border rounded-brand p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <h3 class="text-white font-bold mb-1">Export PDF report</h3>
+        <p class="text-xs text-brand-muted mb-4">
+          {{ monthName }} {{ year }} · {{ selectedCg ? selectedCg.name + ' cellgroup' : cellgroupId === 'none' ? 'Members without a cellgroup' : 'All cellgroups' }}.
+          Check the names that will be printed on the signature lines.
+        </p>
+
+        <label class="lbl">Header logo</label>
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-14 h-14 rounded-lg bg-white border border-brand-border flex items-center justify-center overflow-hidden shrink-0">
+            <img *ngIf="logoPreview" [src]="logoPreview" alt="Logo" class="w-full h-full object-contain" />
+            <span *ngIf="!logoPreview" class="text-[10px] text-gray-500">No logo</span>
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label class="inline-flex items-center justify-center h-9 px-3 rounded-brand bg-navy-input border border-brand-border text-xs text-brand-text cursor-pointer">
+              Choose another image
+              <input type="file" accept="image/*" class="hidden" (change)="onLogoPicked($event)" />
+            </label>
+            <button type="button" *ngIf="customLogo" (click)="resetLogo()" class="text-xs text-brand-muted text-left">Use the church logo again</button>
+          </div>
+        </div>
+
+        <label class="lbl">Prepared by</label>
+        <input [(ngModel)]="pdfForm.preparedName" name="preparedName" placeholder="Name" class="inp mb-2" />
+        <input [(ngModel)]="pdfForm.preparedTitle" name="preparedTitle" placeholder="Position" class="inp mb-4" />
+
+        <label class="lbl">Noted by</label>
+        <input [(ngModel)]="pdfForm.notedName" name="notedName" placeholder="Name (leave blank to skip)" class="inp mb-2" />
+        <input [(ngModel)]="pdfForm.notedTitle" name="notedTitle" placeholder="Position" class="inp mb-4" />
+
+        <label class="lbl">Noted by (church)</label>
+        <input [(ngModel)]="pdfForm.pastorName" name="pastorName" placeholder="Name" class="inp mb-2" />
+        <input [(ngModel)]="pdfForm.pastorTitle" name="pastorTitle" placeholder="Position" class="inp mb-4" />
+
+        <label class="flex items-start gap-2 text-sm text-brand-muted mb-4 cursor-pointer">
+          <input type="checkbox" [(ngModel)]="pdfForm.includeInactive" name="includeInactive" class="accent-gold mt-0.5" />
+          <span>Also list inactive members (shown in red, counted as inactive)</span>
+        </label>
+
+        <p *ngIf="pdfError" class="text-brand-error text-sm mb-3">{{ pdfError }}</p>
+        <div class="flex gap-3">
+          <app-button variant="ghost" (click)="pdfOpen = false">Cancel</app-button>
+          <app-button type="submit" [disabled]="pdfBusy">{{ pdfBusy ? 'Making PDF…' : 'Download PDF' }}</app-button>
+        </div>
+      </form>
+    </div>
+
     <app-confirmation-modal [open]="confirmClear" title="Clear attendance?" message="This unchecks every box on this page. Nothing is deleted until you press Save."
       confirmLabel="Clear" [danger]="true" (confirmed)="clearAll(); confirmClear = false" (cancelled)="confirmClear = false"></app-confirmation-modal>
 
     <app-confirmation-modal [open]="!!pendingNav" title="Discard unsaved changes?" message="You have attendance changes that are not saved yet."
-      confirmLabel="Discard" [danger]="true" (confirmed)="runPending()" (cancelled)="pendingNav = null"></app-confirmation-modal>
+      confirmLabel="Discard" [danger]="true" (confirmed)="runPending()" (cancelled)="cancelPending()"></app-confirmation-modal>
 
     <app-confirmation-modal [open]="!!removeTarget" title="Remove this meeting date?"
       [message]="'Any attendance already recorded for ' + (removeTarget?.typeName || '') + ' on ' + (removeTarget?.date || '') + ' will be deleted too.'"
@@ -169,6 +232,8 @@ const COUNTED = ['present', 'late'];
 export class ServiceAttendanceComponent implements OnChanges {
   private api = inject(AttendanceBoardService);
   private deptApi = inject(DepartmentService);
+  private cgApi = inject(CellgroupService);
+  private auth = inject(AuthService);
 
   @Input() departmentId = '';   // '' = every ministry (admin view)
   @Input() canMark = false;     // tick boxes + Save
@@ -198,6 +263,16 @@ export class ServiceAttendanceComponent implements OnChanges {
   addForm = { typeId: '', departmentId: '', date: '', repeat: false };
   allDepartments: DepartmentRecord[] = [];
 
+  // cellgroup picker + PDF report
+  cellgroups: CellgroupRecord[] = [];
+  cellgroupId = '';           // '' = all, 'none' = members without a cellgroup, otherwise a cellgroup id
+  loadedCellgroupId = '';
+  lockedCellgroup = false;    // cellgroup leaders are locked to their own cellgroup
+  pdfOpen = false; pdfBusy = false; pdfError = '';
+  customLogo: string | null = null;   // a logo picked for this report; null = the church logo from church.config.ts
+  logoPreview: string | null = null;
+  pdfForm = { preparedName: '', preparedTitle: '', notedName: '', notedTitle: '', pastorName: CHURCH.pastorName, pastorTitle: CHURCH.pastorTitle, includeInactive: true };
+
   get monthName(): string { return MONTH_NAMES[this.month - 1]; }
   head(c: string): string { return HEAD[c] || HEAD['gold']; }
   chip(c: string): string { return CHIP[c] || CHIP['gold']; }
@@ -206,14 +281,37 @@ export class ServiceAttendanceComponent implements OnChanges {
   trackMember = (_: number, m: BoardMember) => m._id;
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['departmentId']) { this.search = ''; this.load(); }
+    if (changes['departmentId']) {
+      this.search = ''; this.cellgroupId = ''; this.loadedCellgroupId = ''; this.lockedCellgroup = false; this.cellgroups = [];
+      this.loadCellgroups();
+      this.load();
+    }
   }
+
+  get selectedCg(): CellgroupRecord | null { return this.cellgroups.find((c) => c._id === this.cellgroupId) || null; }
+
+  private loadCellgroups(): void {
+    if (!this.departmentId) return;
+    this.cgApi.list({ department: this.departmentId }).subscribe((list) => {
+      this.cellgroups = list;
+      const own = this.auth.user()?.cellgroup;
+      if (own) { this.cellgroupId = own.id; this.loadedCellgroupId = own.id; this.lockedCellgroup = true; } // the server already limits leaders to their own cellgroup
+    });
+  }
+
+  onCellgroupChange(): void {
+    const run = () => { this.notice = ''; this.search = ''; this.loadedCellgroupId = this.cellgroupId; this.load(); };
+    if (this.changes) this.pendingNav = run; else run();
+  }
+
+  cancelPending(): void { this.pendingNav = null; this.cellgroupId = this.loadedCellgroupId; }
 
   // ---- loading
   load(): void {
     this.loading = true; this.error = '';
     const params: Record<string, string> = { year: String(this.year), month: String(this.month) };
     if (this.departmentId) params['department'] = this.departmentId;
+    if (this.cellgroupId) params['cellgroup'] = this.cellgroupId;
     this.api.month(params).subscribe({
       next: (r) => {
         this.data = r;
@@ -375,6 +473,69 @@ export class ServiceAttendanceComponent implements OnChanges {
     this.api.deleteMeeting(o.serviceId).subscribe({
       next: () => { this.notice = 'Meeting date removed.'; this.load(); },
       error: (e) => (this.error = e.error?.message || 'Could not remove the date.')
+    });
+  }
+
+  // ---- PDF report
+  openPdf(): void {
+    if (!this.data) return;
+    if (this.changes) { this.error = 'Save your attendance changes first, then export the PDF.'; return; }
+    this.error = ''; this.pdfError = '';
+    const cg = this.selectedCg, u = this.auth.user();
+    const base = { pastorName: CHURCH.pastorName, pastorTitle: CHURCH.pastorTitle, includeInactive: true };
+    this.pdfForm = cg
+      // Prepared by the assistant leader, noted by the leader and the pastor
+      ? { ...base, preparedName: cg.assistantLeaders?.[0] || '', preparedTitle: 'Assistant Cellgroup Leader', notedName: cg.leaderName || '', notedTitle: 'Cellgroup Leader' }
+      // Whole ministry (no single leader): prepared by whoever is signed in
+      : { ...base, preparedName: u ? `${u.firstName} ${u.lastName}` : '', preparedTitle: u?.roleLabel || '', notedName: '', notedTitle: '' };
+    this.pdfOpen = true;
+    if (!this.customLogo) loadLogo(CHURCH.logoLeft).then((l) => (this.logoPreview = l));
+  }
+
+  async onLogoPicked(ev: Event): Promise<void> {
+    const input = ev.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    const logo = await logoFromFile(file);
+    if (!logo) { this.pdfError = 'Please choose a picture file (PNG or JPG).'; return; }
+    this.pdfError = ''; this.customLogo = logo; this.logoPreview = logo;
+  }
+
+  resetLogo(): void {
+    this.customLogo = null;
+    loadLogo(CHURCH.logoLeft).then((l) => (this.logoPreview = l));
+  }
+
+  downloadPdf(): void {
+    if (this.pdfBusy) return;
+    this.pdfBusy = true; this.pdfError = '';
+    const params: Record<string, string> = { year: String(this.year), month: String(this.month), includeInactive: String(this.pdfForm.includeInactive) };
+    if (this.departmentId) params['department'] = this.departmentId;
+    if (this.cellgroupId) params['cellgroup'] = this.cellgroupId;
+    const f = this.pdfForm;
+    this.api.month(params).subscribe({
+      next: (r) => {
+        (async () => {
+          try {
+            const { doc, filename } = await buildAttendancePdf({
+              ministryName: r.department?.name || 'All Ministries',
+              cellgroupLabel: this.selectedCg ? this.selectedCg.name : this.cellgroupId === 'none' ? 'No cellgroup yet' : null,
+              monthName: this.monthName, year: this.year, today: this.today,
+              occurrences: r.occurrences, members: r.members, marks: r.marks,
+              preparedBy: { name: f.preparedName.trim(), title: f.preparedTitle.trim() },
+              notedBy: [{ name: f.notedName.trim(), title: f.notedTitle.trim() }, { name: f.pastorName.trim(), title: f.pastorTitle.trim() }],
+              logoLeft: this.customLogo || (await loadLogo(CHURCH.logoLeft)),
+              logoRight: this.customLogo ? null : await loadLogo(CHURCH.logoRight)
+            });
+            doc.save(filename);
+            this.pdfOpen = false; this.notice = 'PDF report downloaded.';
+          } catch {
+            this.pdfError = 'Could not make the PDF. Please try again.';
+          } finally { this.pdfBusy = false; }
+        })();
+      },
+      error: (e) => { this.pdfBusy = false; this.pdfError = e.error?.message || 'Could not load the attendance for the PDF.'; }
     });
   }
 

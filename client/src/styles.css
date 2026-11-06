@@ -2,6 +2,106 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  @apply bg-navy text-brand-text font-sans m-0;
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-navy text-brand-text font-sans m-0;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  a, button, select, summary { touch-action: manipulation; }
+}
+
+@layer components {
+  /* 44px round/square icon button — the minimum comfortable touch target */
+  .icon-btn {
+    @apply inline-flex items-center justify-center w-11 h-11 rounded-lg text-brand-muted hover:text-brand-text hover:bg-navy-input transition-colors;
+  }
+}
+
+/* ───────────── Phones & tablets: forms ─────────────
+   16px inputs stop iOS Safari from zooming the page when a field is focused. */
+@media (max-width: 767px) {
+  input:not([type='checkbox']):not([type='radio']),
+  select,
+  textarea { font-size: 16px !important; }
+}
+@media (pointer: coarse) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  select { min-height: 44px; }
+  input[type='checkbox'], input[type='radio'] { min-width: 18px; min-height: 18px; }
+}
+
+/* ───────────── Modals become bottom sheets on phones ─────────────
+   Every modal in the app is `fixed inset-0 z-50 ... items-center` wrapping a form/div,
+   so one rule restyles all of them without touching each component. */
+@keyframes ct-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ct-sheet-up { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+@media (max-width: 639px) {
+  .fixed.inset-0.z-50.items-center {
+    align-items: flex-end;
+    padding: 0;
+    animation: ct-fade .18s ease-out;
+  }
+  .fixed.inset-0.z-50.items-center > form,
+  .fixed.inset-0.z-50.items-center > div {
+    width: 100%;
+    max-width: none;
+    max-height: 92dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    border-bottom-width: 0;
+    padding: 1.25rem 1.25rem calc(1.25rem + env(safe-area-inset-bottom));
+    animation: ct-sheet-up .25s cubic-bezier(.2, .8, .2, 1);
+  }
+}
+/* Two-column form rows stack on narrow phones */
+@media (max-width: 479px) {
+  .fixed.inset-0.z-50 .grid.grid-cols-2 { grid-template-columns: minmax(0, 1fr); }
+}
+/* Bigger tablets keep the centred dialog but never exceed the screen height */
+@media (min-width: 640px) {
+  .fixed.inset-0.z-50.items-center > form,
+  .fixed.inset-0.z-50.items-center > div { max-height: 92dvh; overflow-y: auto; }
+}
+
+/* ───────────── Attendance board on small screens ───────────── */
+@media (max-width: 639px) {
+  .min-w-\[200px\] { min-width: 150px; }
+}
+@media (max-width: 767px) {
+  .max-h-\[60vh\] { max-height: 70dvh; }
+}
+.overflow-x-auto, .overflow-auto { -webkit-overflow-scrolling: touch; }
+
+/* ───────────── Bottom-nav clearance (phones) ───────────── */
+.mobile-nav-pad { padding-bottom: 1.5rem; }
+@media (max-width: 767px) {
+  .mobile-nav-pad { padding-bottom: calc(5.5rem + env(safe-area-inset-bottom)); }
+}
+
+/* ───────────── Row actions inside mobile cards ───────────── */
+.card-actions button,
+.card-actions a {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 44px; min-height: 44px; border-radius: .6rem; background: #0d1a2e;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+
+/* ───────────── Printing (QR cards) ───────────── */
+@media print {
+  @page { margin: 10mm; }
+  html, body { background: #fff !important; color: #000 !important; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  main { max-width: none !important; padding: 0 !important; }
 }
