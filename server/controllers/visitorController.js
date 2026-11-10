@@ -1,5 +1,6 @@
 const Visitor = require('../models/Visitor');
 const { log } = require('../utils/logger');
+const { memberScope, canAccessMember } = require('../utils/access');
 
 exports.getVisitors = async (req, res, next) => {
   try {
@@ -8,6 +9,7 @@ exports.getVisitors = async (req, res, next) => {
     if (date)       filter.date       = date;
     if (firstTime)  filter.firstTime  = firstTime;
     if (department) filter.department = department;
+    Object.assign(filter, memberScope(req.user));
     if (search) filter.name = new RegExp(search, 'i');
 
     const visitors = await Visitor.find(filter).populate('cellgroup', 'name').populate('department', 'name slug').sort({ createdAt: -1 });
@@ -18,7 +20,7 @@ exports.getVisitors = async (req, res, next) => {
 exports.createVisitor = async (req, res, next) => {
   try {
     const today = new Date().toISOString().split('T')[0];
-    const visitor = await Visitor.create({ ...req.body, date: req.body.date || today, registeredBy: req.user._id });
+    const visitor = await Visitor.create({ ...req.body, ...memberScope(req.user), date: req.body.date || today, registeredBy: req.user._id });
     await log({ user: req.user, action: 'create', module: 'visitors', recordId: visitor._id, details: visitor.name });
     req.io?.emit('visitors:updated', visitor);
     res.status(201).json({ success: true, data: visitor });
@@ -27,7 +29,10 @@ exports.createVisitor = async (req, res, next) => {
 
 exports.updateVisitor = async (req, res, next) => {
   try {
-    const visitor = await Visitor.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+    const found = await Visitor.findById(req.params.id);
+    if (!found) return res.status(404).json({ success: false, message: 'Visitor not found' });
+    if (!canAccessMember(req.user, found)) return res.status(403).json({ success: false, message: 'Forbidden — outside your access' });
+    const visitor = await Visitor.findByIdAndUpdate(req.params.id, { ...req.body, ...memberScope(req.user) }, { new: true, runValidators: true });
     if (!visitor) return res.status(404).json({ success: false, message: 'Visitor not found' });
     await log({ user: req.user, action: 'update', module: 'visitors', recordId: visitor._id });
     res.json({ success: true, data: visitor });
@@ -36,6 +41,9 @@ exports.updateVisitor = async (req, res, next) => {
 
 exports.deleteVisitor = async (req, res, next) => {
   try {
+    const found = await Visitor.findById(req.params.id);
+    if (!found) return res.status(404).json({ success: false, message: 'Visitor not found' });
+    if (!canAccessMember(req.user, found)) return res.status(403).json({ success: false, message: 'Forbidden — outside your access' });
     const visitor = await Visitor.findByIdAndDelete(req.params.id);
     if (!visitor) return res.status(404).json({ success: false, message: 'Visitor not found' });
     await log({ user: req.user, action: 'delete', module: 'visitors', recordId: req.params.id });

@@ -20,6 +20,10 @@ async function loadCellgroup(req, res, id) {
     res.status(403).json({ success: false, message: 'Forbidden — this cellgroup belongs to another ministry' });
     return null;
   }
+  if (req.user.cellgroup && String(req.user.cellgroup) !== String(cg._id)) {
+    res.status(403).json({ success: false, message: 'Forbidden — you can only open your own cellgroup' });
+    return null;
+  }
   return cg;
 }
 

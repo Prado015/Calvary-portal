@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
 import { DepartmentService, DepartmentRecord } from '../../../core/services/department.service';
+import { CellgroupService } from '../../../core/services/cellgroup.service';
 import { PermissionsService } from '../../../core/services/permissions.service';
 import { IconComponent } from '../../../shared/components/icon/icon.component';
 import { ButtonComponent } from '../../../shared/components/ui/button.component';
@@ -29,7 +30,11 @@ export class LoginComponent implements OnInit {
   regError = '';
   regDone = '';
   regShowPassword = false;
-  reg = { firstName: '', lastName: '', email: '', password: '', confirm: '', position: '', department: '' };
+  reg = { firstName: '', lastName: '', email: '', password: '', confirm: '', position: '', department: '', cellgroup: '' };
+  regCellgroups: { _id: string; name: string }[] = [];
+  // Leaders and assistant leaders are locked to their own cellgroup, so they must pick it.
+  readonly lockedPositions = ['Leader', 'Assistant Leader'];
+  get needsCellgroup(): boolean { return this.lockedPositions.includes(this.reg.position); }
   regPositions = ['President', 'Vice President', 'Secretary', 'Treasurer', 'Leader', 'Assistant Leader', 'Pastor', 'Minister'];
 
   quickModules = [
@@ -49,6 +54,7 @@ export class LoginComponent implements OnInit {
   constructor(
     private auth: AuthService,
     private departmentService: DepartmentService,
+    private cellgroupService: CellgroupService,
     private permissions: PermissionsService,
     private router: Router
   ) {}
@@ -65,14 +71,28 @@ export class LoginComponent implements OnInit {
   }
 
   openRegister(): void {
-    this.reg = { firstName: '', lastName: '', email: '', password: '', confirm: '', position: '', department: '' };
+    this.reg = { firstName: '', lastName: '', email: '', password: '', confirm: '', position: '', department: '', cellgroup: '' };
+    this.regCellgroups = [];
     this.regError = ''; this.regDone = ''; this.registerOpen = true;
+  }
+
+  // Runs when the position or portal changes: leaders need that portal's cellgroup list.
+  onRegChoiceChange(): void {
+    this.reg.cellgroup = '';
+    this.regCellgroups = [];
+    if (this.needsCellgroup && this.reg.department) {
+      this.cellgroupService.listPublic(this.reg.department).subscribe({
+        next: (list) => (this.regCellgroups = list),
+        error: () => (this.regCellgroups = [])
+      });
+    }
   }
 
   handleRegister(): void {
     this.regError = '';
     if (this.reg.password.length < 8) { this.regError = 'Password must be at least 8 characters.'; return; }
     if (this.reg.password !== this.reg.confirm) { this.regError = 'The two passwords do not match.'; return; }
+    if (this.needsCellgroup && !this.reg.cellgroup) { this.regError = 'Please choose your cellgroup.'; return; }
     this.regLoading = true;
     const { confirm, ...payload } = this.reg;
     this.auth.signup(payload).subscribe({

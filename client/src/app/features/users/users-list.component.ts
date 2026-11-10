@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { UserService } from '../../core/services/user.service';
 import { DepartmentService, DepartmentRecord } from '../../core/services/department.service';
+import { CellgroupService, CellgroupRecord } from '../../core/services/cellgroup.service';
 import { PageHeaderComponent } from '../../shared/components/common/page-header.component';
 import { DataTableComponent, TableColumn } from '../../shared/components/tables/data-table.component';
 import { ButtonComponent } from '../../shared/components/ui/button.component';
@@ -28,6 +29,12 @@ const blank = () => ({ firstName: '', lastName: '', email: '', password: '', rol
     </app-page-header>
 
     <ng-template #rowActions let-u>
+      <!-- Lock a person to one cellgroup (leaders / assistant leaders). Blank = sees the whole ministry. -->
+      <select *ngIf="u.department" [ngModel]="u.cellgroup?._id || ''" (ngModelChange)="setCellgroup(u, $event)" title="Lock this person to one cellgroup"
+              class="text-xs mr-2 py-1.5 px-2 rounded-lg bg-navy-input border border-brand-border text-brand-text max-w-[11rem]">
+        <option value="">All cellgroups</option>
+        <option *ngFor="let c of cellgroupsFor(u)" [value]="c._id">{{ c.name }}</option>
+      </select>
       <ng-container *ngIf="u.status === 'pending'; else normalActions">
         <select [ngModel]="approveRole[u._id] || u.role" (ngModelChange)="approveRole[u._id] = $event" title="Access role to give this person"
                 class="text-xs mr-2 py-1.5 px-2 rounded-lg bg-navy-input border border-brand-border text-brand-text">
@@ -72,6 +79,8 @@ const blank = () => ({ firstName: '', lastName: '', email: '', password: '', rol
 export class UsersListComponent implements OnInit {
   private api = inject(UserService);
   private deptApi = inject(DepartmentService);
+  private cgApi = inject(CellgroupService);
+  allCellgroups: CellgroupRecord[] = [];
 
   roles = ROLES;
   approveRole: Record<string, string> = {};   // role chosen for each pending person before approving
@@ -89,12 +98,14 @@ export class UsersListComponent implements OnInit {
     { key: 'position', label: 'Position', render: (u) => u.position || '—' },
     { key: 'role', label: 'Role', render: (u) => ROLES.find((r) => r.value === u.role)?.label || u.role },
     { key: 'department', label: 'Portal', render: (u) => u.department?.name || 'Admin back office' },
+    { key: 'cellgroup', label: 'Cellgroup', render: (u) => u.cellgroup?.name || (u.department ? 'All in portal' : '—') },
     { key: 'status', label: 'Status', badge: (u) => ({ status: u.status }) },
     { key: 'actions', label: '', actions: true }
   ];
 
   ngOnInit(): void {
     this.deptApi.list().subscribe((d) => (this.departments = d));
+    this.cgApi.listAll().subscribe((l) => (this.allCellgroups = l));
     this.load();
   }
 
@@ -108,6 +119,18 @@ export class UsersListComponent implements OnInit {
     this.api.create({ ...this.form, department: this.form.department || null }).subscribe({
       next: () => { this.saving = false; this.formOpen = false; this.form = blank(); this.load(); },
       error: (e) => { this.saving = false; this.error = e.error?.message || 'Could not create user'; }
+    });
+  }
+
+  cellgroupsFor(u: any): CellgroupRecord[] {
+    const dept = u.department?._id || u.department;
+    return this.allCellgroups.filter((c) => (c.department?._id || c.department) === dept);
+  }
+
+  setCellgroup(u: any, cellgroup: string): void {
+    this.api.update(u._id, { cellgroup: cellgroup || null }).subscribe({
+      next: () => this.load(),
+      error: (e) => { alert(e.error?.message || 'Update failed'); this.load(); }
     });
   }
 

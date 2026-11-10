@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const Member = require('../models/Member');
 const FollowUp = require('../models/FollowUp');
 const { computeFollowUps } = require('../utils/followup');
-const { canAccessDepartment } = require('../utils/access');
+const { canAccessMember } = require('../utils/access');
 const { log } = require('../utils/logger');
 
 const METHODS = ['call', 'sms', 'email', 'chat', 'visit', 'other'];
@@ -19,7 +19,7 @@ exports.list = async (req, res, next) => {
     }
     for (const id of [department, req.query.cellgroup]) if (id && !mongoose.isValidObjectId(id)) return bad(res, 'Invalid id');
 
-    const { data, meta } = await computeFollowUps({ department, cellgroup: req.query.cellgroup || null, threshold: req.query.threshold });
+    const { data, meta } = await computeFollowUps({ department, cellgroup: req.user.cellgroup ? String(req.user.cellgroup) : (req.query.cellgroup || null), threshold: req.query.threshold });
     res.json({ success: true, count: data.length, meta, data });
   } catch (err) { next(err); }
 };
@@ -28,9 +28,9 @@ exports.list = async (req, res, next) => {
 exports.addLog = async (req, res, next) => {
   try {
     if (!mongoose.isValidObjectId(req.params.memberId)) return bad(res, 'Invalid id');
-    const member = await Member.findById(req.params.memberId, 'department firstName lastName');
+    const member = await Member.findById(req.params.memberId, 'department cellgroup firstName lastName');
     if (!member) return bad(res, 'Member not found', 404);
-    if (!canAccessDepartment(req.user, member.department)) return bad(res, 'Forbidden — that member belongs to another ministry', 403);
+    if (!canAccessMember(req.user, member)) return bad(res, 'Forbidden — that member is outside your access', 403);
 
     const method = METHODS.includes(req.body.method) ? req.body.method : 'call';
     const note = String(req.body.note || '').trim().slice(0, 500);
@@ -44,9 +44,9 @@ exports.addLog = async (req, res, next) => {
 exports.getLogs = async (req, res, next) => {
   try {
     if (!mongoose.isValidObjectId(req.params.memberId)) return bad(res, 'Invalid id');
-    const member = await Member.findById(req.params.memberId, 'department');
+    const member = await Member.findById(req.params.memberId, 'department cellgroup');
     if (!member) return bad(res, 'Member not found', 404);
-    if (!canAccessDepartment(req.user, member.department)) return bad(res, 'Forbidden — that member belongs to another ministry', 403);
+    if (!canAccessMember(req.user, member)) return bad(res, 'Forbidden — that member is outside your access', 403);
     const logs = await FollowUp.find({ member: member._id }).populate('by', 'firstName lastName').sort({ createdAt: -1 }).limit(30);
     res.json({ success: true, count: logs.length, data: logs });
   } catch (err) { next(err); }

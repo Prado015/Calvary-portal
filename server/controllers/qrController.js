@@ -3,7 +3,7 @@ const Member = require('../models/Member');
 const Service = require('../models/Service');
 const ServiceType = require('../models/ServiceType');
 const MemberAttendance = require('../models/MemberAttendance');
-const { canAccessDepartment } = require('../utils/access');
+const { canAccessMember, memberScope } = require('../utils/access');
 const { memberQrToken, verifyMemberQrToken } = require('../utils/signing');
 const { isIsoDate, weekdayOf, todayUtc, addDays } = require('../utils/dates');
 
@@ -26,6 +26,7 @@ exports.qrCards = async (req, res, next) => {
     const filter = {};
     if (department) filter.department = department;
     if (cellgroup) filter.cellgroup = cellgroup;
+    Object.assign(filter, memberScope(req.user));
     if (req.query.all !== 'true') filter.status = { $nin: ['inactive', 'other_church'] };
 
     const members = await Member.find(filter).populate('department', 'name').populate('cellgroup', 'name').sort({ lastName: 1, firstName: 1 }).limit(400);
@@ -63,7 +64,7 @@ exports.qrCheckIn = async (req, res, next) => {
 
     const member = await Member.findById(memberId).populate('department', 'name').populate('cellgroup', 'name');
     if (!member) return bad(res, 'Member not found', 404);
-    if (!canAccessDepartment(req.user, member.department._id)) return bad(res, 'This member belongs to another ministry', 403);
+    if (!canAccessMember(req.user, member)) return bad(res, 'This member is outside your access', 403);
 
     const type = await ServiceType.findById(typeId);
     if (!type || !type.active) return bad(res, 'Unknown or switched-off service');

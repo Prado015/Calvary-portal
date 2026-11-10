@@ -166,18 +166,29 @@
                class="w-full mb-4 bg-navy-input border border-brand-border rounded-brand text-sm py-3 px-4 text-brand-text outline-none focus:border-gold/50" />
 
         <label class="block text-[11px] font-semibold tracking-[1.2px] uppercase text-gold-light mb-2">Your position</label>
-        <select [(ngModel)]="reg.position" name="rPosition" required
+        <select [ngModel]="reg.position" (ngModelChange)="reg.position = $event; onRegChoiceChange()" name="rPosition" required
                 class="w-full mb-4 bg-navy-input border border-brand-border rounded-brand text-sm py-3 px-4 text-brand-text outline-none">
           <option value="">Choose your position</option>
           <option *ngFor="let p of regPositions" [value]="p">{{ p }}</option>
         </select>
 
         <label class="block text-[11px] font-semibold tracking-[1.2px] uppercase text-gold-light mb-2">Portal you need access to</label>
-        <select [(ngModel)]="reg.department" name="rDept" required
+        <select [ngModel]="reg.department" (ngModelChange)="reg.department = $event; onRegChoiceChange()" name="rDept" required
                 class="w-full mb-4 bg-navy-input border border-brand-border rounded-brand text-sm py-3 px-4 text-brand-text outline-none">
           <option value="">Choose your portal</option>
           <option *ngFor="let d of departments" [value]="d._id">{{ d.name }} portal</option>
         </select>
+
+        <!-- Leaders / assistant leaders: pick the cellgroup they will be locked to -->
+        <ng-container *ngIf="needsCellgroup">
+          <label class="block text-[11px] font-semibold tracking-[1.2px] uppercase text-gold-light mb-2">Your cellgroup</label>
+          <select [(ngModel)]="reg.cellgroup" name="rCellgroup" required
+                  class="w-full mb-1 bg-navy-input border border-brand-border rounded-brand text-sm py-3 px-4 text-brand-text outline-none">
+            <option value="">{{ !reg.department ? 'Choose your portal first' : regCellgroups.length ? 'Choose your cellgroup' : 'No cellgroups found for this portal' }}</option>
+            <option *ngFor="let c of regCellgroups" [value]="c._id">{{ c.name }}</option>
+          </select>
+          <p class="text-[11px] text-brand-muted mb-4">You will only be able to see your own cellgroup.</p>
+        </ng-container>
 
         <p *ngIf="regError" class="text-brand-error text-sm mb-3">{{ regError }}</p>
 

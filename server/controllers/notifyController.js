@@ -3,7 +3,7 @@ const Member = require('../models/Member');
 const User = require('../models/User');
 const FollowUp = require('../models/FollowUp');
 const Notification = require('../models/Notification');
-const { canAccessDepartment } = require('../utils/access');
+const { canAccessMember } = require('../utils/access');
 const { computeFollowUps } = require('../utils/followup');
 const { providers, sendSms, sendEmail, renderTemplate, todayManila } = require('../utils/notify');
 const { log } = require('../utils/logger');
@@ -43,9 +43,9 @@ exports.send = async (req, res, next) => {
     if (channel === 'email' && message.length > MAX_EMAIL) return bad(res, `Emails are limited to ${MAX_EMAIL} characters`);
     if (!providers()[channel]) return bad(res, channel === 'sms' ? 'Text messaging is not set up on the server yet' : 'Email is not set up on the server yet', 503);
 
-    const members = await Member.find({ _id: { $in: ids } }, 'firstName lastName contact email department');
+    const members = await Member.find({ _id: { $in: ids } }, 'firstName lastName contact email department cellgroup');
     if (members.length !== ids.length) return bad(res, 'Some members were not found', 404);
-    if (members.some((m) => !canAccessDepartment(req.user, m.department))) return bad(res, 'Forbidden — a member belongs to another ministry', 403);
+    if (members.some((m) => !canAccessMember(req.user, m))) return bad(res, 'Forbidden — a member is outside your access', 403);
 
     const savedKind = ['followup', 'broadcast', 'reminder'].includes(kind) ? kind : 'broadcast';
     const subject = String(req.body.subject || 'A message from Calvary Tabernacle').trim().slice(0, 120);
@@ -74,9 +74,9 @@ exports.getLog = async (req, res, next) => {
   try {
     const { member } = req.query;
     if (!member || !mongoose.isValidObjectId(member)) return bad(res, 'member is required');
-    const m = await Member.findById(member, 'department');
+    const m = await Member.findById(member, 'department cellgroup');
     if (!m) return bad(res, 'Member not found', 404);
-    if (!canAccessDepartment(req.user, m.department)) return bad(res, 'Forbidden — that member belongs to another ministry', 403);
+    if (!canAccessMember(req.user, m)) return bad(res, 'Forbidden — that member is outside your access', 403);
     const rows = await Notification.find({ member }).sort({ createdAt: -1 }).limit(30);
     res.json({ success: true, count: rows.length, data: rows });
   } catch (err) { next(err); }

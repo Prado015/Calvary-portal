@@ -17,4 +17,26 @@ function canAccessMember(user, member) {
   return true;
 }
 
-module.exports = { canAccessDepartment, canAccessMember };
+// A cellgroup is reachable if it is in the user's ministry and, for a locked user, it is their own.
+function canAccessCellgroup(user, cg) {
+  if (!user || !cg) return false;
+  const id = (v) => String(v && v._id ? v._id : v);
+  if (user.department && id(cg.department) !== id(user.department)) return false;
+  if (user.cellgroup && id(cg._id) !== id(user.cellgroup)) return false;
+  return true;
+}
+
+// Mongo filter fragment that limits Member / Visitor queries to what this user may see.
+// Merge it LAST so it overrides anything the browser put in the query string:
+//   Object.assign(filter, memberScope(req.user));
+//  - portal accounts (user.department)  -> their ministry only
+//  - leaders / assistant leaders (user.cellgroup) -> their cellgroup only
+//  - president / VP / secretary / treasurer have no cellgroup, so they see the whole ministry
+function memberScope(user) {
+  const f = {};
+  if (user && user.department) f.department = user.department;
+  if (user && user.cellgroup) f.cellgroup = user.cellgroup;
+  return f;
+}
+
+module.exports = { canAccessDepartment, canAccessMember, canAccessCellgroup, memberScope };

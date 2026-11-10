@@ -1,6 +1,7 @@
 const Member = require('../models/Member');
 const MemberAttendance = require('../models/MemberAttendance');
 const Visitor = require('../models/Visitor');
+const { memberScope } = require('../utils/access');
 
 // GET /api/reports/attendance?department=&from=YYYY-MM-DD&to=YYYY-MM-DD
 // One row per service date: present/late/absent counts and attendance rate
@@ -8,7 +9,7 @@ const Visitor = require('../models/Visitor');
 exports.attendanceSummary = async (req, res, next) => {
   try {
     const { department, from, to } = req.query;
-    const memberFilter = department ? { department } : {};
+    const memberFilter = { ...(department ? { department } : {}), ...memberScope(req.user) };
     const memberIds = (await Member.find(memberFilter, '_id')).map((m) => m._id);
     const totalMembers = memberIds.length;
 
@@ -45,7 +46,7 @@ exports.attendanceSummary = async (req, res, next) => {
 // GET /api/reports/members?department= — full (unpaginated) roster for CSV export
 exports.membersExport = async (req, res, next) => {
   try {
-    const filter = req.query.department ? { department: req.query.department } : {};
+    const filter = { ...(req.query.department ? { department: req.query.department } : {}), ...memberScope(req.user) };
     const members = await Member.find(filter).populate('department', 'name').populate('cellgroup', 'name').sort({ lastName: 1 }).limit(5000);
     res.json({ success: true, count: members.length, data: members });
   } catch (err) { next(err); }
@@ -57,6 +58,7 @@ exports.visitorsExport = async (req, res, next) => {
     const { department, from, to } = req.query;
     const filter = {};
     if (department) filter.department = department;
+    Object.assign(filter, memberScope(req.user));
     if (from || to) filter.date = { ...(from && { $gte: from }), ...(to && { $lte: to }) };
     const visitors = await Visitor.find(filter).populate('cellgroup', 'name').sort({ date: -1 }).limit(5000);
     res.json({ success: true, count: visitors.length, data: visitors });

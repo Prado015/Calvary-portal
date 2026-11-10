@@ -9,11 +9,23 @@ const { canAccessDepartment } = require('../utils/access');
 
 const bad = (res, message, status = 400) => res.status(status).json({ success: false, message });
 
+// GET /api/cellgroups/public?department=<id> — no login; only id + name of active cellgroups
+exports.getPublicCellgroups = async (req, res, next) => {
+  try {
+    const { department } = req.query;
+    if (!department || !mongoose.isValidObjectId(department)) return bad(res, 'department is required');
+    const rows = await Cellgroup.find({ department, active: true }, 'name').sort({ name: 1 });
+    res.json({ success: true, data: rows });
+  } catch (err) { next(err); }
+};
+
 // GET /api/cellgroups[?department=][&includeInactive=true][&withCounts=true]
 exports.getCellgroups = async (req, res, next) => {
   try {
     const filter = req.query.includeInactive === 'true' ? {} : { active: true };
     if (req.query.department) filter.department = req.query.department;
+    if (req.user.department) filter.department = req.user.department;   // portal accounts: own ministry only
+    if (req.user.cellgroup) filter._id = req.user.cellgroup;            // leaders / assistants: own cellgroup only
     const cellgroups = await Cellgroup.find(filter)
       .populate('leader', 'firstName lastName')
       .populate('department', 'name slug')
@@ -22,7 +34,7 @@ exports.getCellgroups = async (req, res, next) => {
     if (req.query.withCounts !== 'true') {
       return res.json({ success: true, count: cellgroups.length, data: cellgroups });
     }
-    const rows = await Member.aggregate([{ $match: { cellgroup: { $ne: null } } }, { $group: { _id: '$cellgroup', n: { $sum: 1 } } }]);
+    const rows = await Member.aggregate([{ $match: { cellgroup: { $in: cellgroups.map((c) => c._id) } } }, { $group: { _id: '$cellgroup', n: { $sum: 1 } } }]);
     const counts = new Map(rows.map((r) => [String(r._id), r.n]));
     const data = cellgroups.map((c) => ({ ...c.toObject(), memberCount: counts.get(String(c._id)) || 0 }));
     res.json({ success: true, count: data.length, data });
@@ -52,6 +64,7 @@ exports.updateCellgroup = async (req, res, next) => {
     const existing = await Cellgroup.findById(req.params.id);
     if (!existing) return bad(res, 'Cellgroup not found', 404);
     if (!canAccessDepartment(req.user, existing.department)) return bad(res, 'Forbidden — this cellgroup belongs to another ministry', 403);
+    if (req.user.cellgroup && String(req.user.cellgroup) !== String(existing._id)) return bad(res, 'Forbidden — you can only change your own cellgroup', 403);
 
     // Secretaries/portal managers may only edit who leads the group.
     // Super admin / head usher may edit everything.

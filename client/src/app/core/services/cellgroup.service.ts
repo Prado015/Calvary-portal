@@ -25,6 +25,11 @@ export class CellgroupService {
     return this.list(params);
   }
 
+  /** No login needed — id + name of a ministry's cellgroups, for the register form. */
+  listPublic(departmentId: string): Observable<{ _id: string; name: string }[]> {
+    return this.http.get<{ data: { _id: string; name: string }[] }>('/api/cellgroups/public', { params: { department: departmentId } }).pipe(map(r => r.data));
+  }
+
   create(payload: CellgroupPayload): Observable<CellgroupRecord> {
     return this.http.post<{ data: CellgroupRecord }>('/api/cellgroups', payload).pipe(map(r => r.data));
   }

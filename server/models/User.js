@@ -16,7 +16,9 @@ const UserSchema = new mongoose.Schema({
   // The position the person said they hold when signing up (a label for the admin, not a permission).
   position: { type: String, trim: true, default: '' },
   // Which ministry this account belongs to. null = ushering/admin, unscoped.
-  department: { type: mongoose.Schema.Types.ObjectId, ref: 'Department', default: null }
+  department: { type: mongoose.Schema.Types.ObjectId, ref: 'Department', default: null },
+  // Locks the account to ONE cellgroup (leaders / assistant leaders). null = sees the whole ministry.
+  cellgroup: { type: mongoose.Schema.Types.ObjectId, ref: 'Cellgroup', default: null }
 }, { timestamps: true });
 
 UserSchema.methods.comparePassword = function (plain) {

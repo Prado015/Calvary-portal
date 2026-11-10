@@ -1,4 +1,5 @@
 const jwt  = require('jsonwebtoken');
+const mongoose = require('mongoose');
 const User = require('../models/User');
 const { log } = require('../utils/logger');
 
@@ -9,7 +10,8 @@ const shapeUser = (user) => ({
   email: user.email, role: user.role, position: user.position || '', status: user.status,
   department: user.department && user.department.slug
     ? { id: user.department._id, name: user.department.name, slug: user.department.slug }
-    : null
+    : null,
+  cellgroup: user.cellgroup && user.cellgroup.name ? { id: user.cellgroup._id, name: user.cellgroup.name } : null
 });
 
 const sendTokenResponse = (user, statusCode, res) => {
@@ -34,6 +36,8 @@ exports.register = async (req, res, next) => {
 // Positions a person can pick when signing up. This is only a label shown to the admin.
 // The account gets the lowest access (viewer) and stays 'pending' until a super admin
 // approves it and chooses the real role.
+// These two positions are locked to a single cellgroup. Every other position sees the whole ministry.
+const LOCKED_POSITIONS = ['Leader', 'Assistant Leader'];
 const POSITIONS = ['President', 'Vice President', 'Secretary', 'Treasurer', 'Leader', 'Assistant Leader', 'Pastor', 'Minister'];
 
 // POST /api/auth/signup — public. Creates a PENDING account (no token, cannot log in until approved).
@@ -64,13 +68,23 @@ exports.signup = async (req, res, next) => {
     if (!departmentId) return res.status(400).json({ success: false, message: 'Please choose your portal' });
     const department = await Department.findOne({ _id: departmentId, active: true }).select('_id');
     if (!department) return res.status(400).json({ success: false, message: 'Please choose a valid ministry portal' });
+    // Leaders and assistant leaders must name their own cellgroup (it has to belong to the portal they chose).
+    let cellgroupId = null;
+    if (LOCKED_POSITIONS.includes(position)) {
+      const Cellgroup = require('../models/Cellgroup');
+      const cgId = req.body.cellgroup || '';
+      if (!cgId) return res.status(400).json({ success: false, message: 'Please choose your cellgroup' });
+      const cg = mongoose.isValidObjectId(cgId) ? await Cellgroup.findOne({ _id: cgId, department: department._id, active: true }).select('_id') : null;
+      if (!cg) return res.status(400).json({ success: false, message: 'Please choose a valid cellgroup for your portal' });
+      cellgroupId = cg._id;
+    }
     if (await User.findOne({ email })) {
       return res.status(400).json({ success: false, message: 'This email is already registered' });
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const user = await User.create({ firstName, lastName, email, passwordHash, role: 'viewer', position, department: department._id, status: 'pending' });
-    await log({ user: null, action: 'create', module: 'users', recordId: user._id, details: `self-registration (pending): ${email} — ${position}` });
+    const user = await User.create({ firstName, lastName, email, passwordHash, role: 'viewer', position, department: department._id, cellgroup: cellgroupId, status: 'pending' });
+    await log({ user: null, action: 'create', module: 'users', recordId: user._id, details: `self-registration (pending): ${email} — ${position}${cellgroupId ? ' (cellgroup locked)' : ''}` });
     res.status(201).json({ success: true, message: 'Request sent. An administrator will approve your account, then you can log in.' });
   } catch (err) { next(err); }
 };
@@ -82,7 +96,7 @@ exports.login = async (req, res, next) => {
     const email = String(req.body.email || '').trim().toLowerCase();
     if (!email || !password) return res.status(400).json({ success: false, message: 'Email and password required' });
 
-    const user = await User.findOne({ email }).select('+passwordHash').populate('department', 'name slug');
+    const user = await User.findOne({ email }).select('+passwordHash').populate('department', 'name slug').populate('cellgroup', 'name');
     if (!user) return res.status(401).json({ success: false, message: 'Invalid credentials' });
 
     const match = await user.comparePassword(password);
@@ -100,7 +114,7 @@ exports.login = async (req, res, next) => {
 // GET /api/auth/me
 exports.getMe = async (req, res, next) => {
   try {
-    const user = await req.user.populate('department', 'name slug');
+    const user = await req.user.populate([{ path: 'department', select: 'name slug' }, { path: 'cellgroup', select: 'name' }]);
     res.json({ success: true, user: shapeUser(user) });
   } catch (err) { next(err); }
 };

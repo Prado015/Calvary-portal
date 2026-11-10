@@ -4,7 +4,7 @@ const Cellgroup = require('../models/Cellgroup');
 const Department = require('../models/Department');
 const MemberPhoto = require('../models/MemberPhoto');
 const { log } = require('../utils/logger');
-const { canAccessDepartment } = require('../utils/access');
+const { canAccessMember, memberScope } = require('../utils/access');
 const { photoUrl, verifyPhotoSignature } = require('../utils/signing');
 
 const bad = (res, message, status = 400) => res.status(status).json({ success: false, message });
@@ -38,6 +38,7 @@ exports.getMembers = async (req, res, next) => {
       const re = new RegExp(escapeRegex(search), 'i');
       filter.$or = [{ firstName: re }, { lastName: re }, { memberId: re }];
     }
+    Object.assign(filter, memberScope(req.user));   // never trust the department/cellgroup in the URL
     const page  = Math.max(parseInt(req.query.page, 10) || 1, 1);
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 100);
 
@@ -54,6 +55,7 @@ exports.getMember = async (req, res, next) => {
   try {
     const member = await Member.findById(req.params.id).populate('department', 'name slug').populate('cellgroup', 'name');
     if (!member) return bad(res, 'Member not found', 404);
+    if (!canAccessMember(req.user, member)) return bad(res, 'Forbidden — that member is outside your access', 403);
     res.json({ success: true, data: member });
   } catch (err) { next(err); }
 };
@@ -63,6 +65,9 @@ exports.createMember = async (req, res, next) => {
     const data = pick(req.body);
     if (data.cellgroup === '') data.cellgroup = null;
     if (data.birthdate === '') data.birthdate = null;
+    // Portal accounts add people to their own ministry; a locked leader adds only to their own cellgroup.
+    if (req.user.department) data.department = String(req.user.department);
+    if (req.user.cellgroup) data.cellgroup = String(req.user.cellgroup);
     const problem = await checkPairing(data.department, data.cellgroup);
     if (problem) return bad(res, problem);
     const member = await Member.create({ ...data, registeredBy: req.user._id });
@@ -76,10 +81,13 @@ exports.updateMember = async (req, res, next) => {
     if (!mongoose.isValidObjectId(req.params.id)) return bad(res, 'Invalid id');
     const existing = await Member.findById(req.params.id);
     if (!existing) return bad(res, 'Member not found', 404);
+    if (!canAccessMember(req.user, existing)) return bad(res, 'Forbidden — that member is outside your access', 403);
 
     const data = pick(req.body);
     if (data.cellgroup === '') data.cellgroup = null;
     if (data.birthdate === '') data.birthdate = null;
+    if (req.user.department) data.department = String(req.user.department);
+    if (req.user.cellgroup) data.cellgroup = String(req.user.cellgroup);
     const department = data.department !== undefined ? data.department : existing.department;
     const cellgroup = data.cellgroup !== undefined ? data.cellgroup : existing.cellgroup;
     const problem = await checkPairing(department, cellgroup);
@@ -94,8 +102,10 @@ exports.updateMember = async (req, res, next) => {
 
 exports.deleteMember = async (req, res, next) => {
   try {
+    const target = await Member.findById(req.params.id);
+    if (!target) return bad(res, 'Member not found', 404);
+    if (!canAccessMember(req.user, target)) return bad(res, 'Forbidden — that member is outside your access', 403);
     const member = await Member.findByIdAndDelete(req.params.id);
-    if (!member) return bad(res, 'Member not found', 404);
     await MemberPhoto.deleteOne({ member: member._id });
     await log({ user: req.user, action: 'delete', module: 'members', recordId: req.params.id });
     res.json({ success: true, data: {} });
@@ -107,6 +117,7 @@ exports.getMemberStats = async (req, res, next) => {
     const filter = {};
     if (req.query.department) filter.department = req.query.department;
     if (req.query.cellgroup)  filter.cellgroup  = req.query.cellgroup;
+    Object.assign(filter, memberScope(req.user));
 
     const [total, active, needsFollowup, inactive, sundayGoer, otherChurch, bibleStudy] = await Promise.all([
       Member.countDocuments(filter),
@@ -143,7 +154,7 @@ exports.uploadPhoto = async (req, res, next) => {
     if (!mongoose.isValidObjectId(req.params.id)) return bad(res, 'Invalid id');
     const member = await Member.findById(req.params.id);
     if (!member) return bad(res, 'Member not found', 404);
-    if (!canAccessDepartment(req.user, member.department)) return bad(res, 'Forbidden — that member belongs to another ministry', 403);
+    if (!canAccessMember(req.user, member)) return bad(res, 'Forbidden — that member is outside your access', 403);
 
     const img = decodeImage(req.body.image);
     if (!img) return bad(res, 'Please choose a JPG, PNG or WebP photo under 400 KB');
@@ -177,7 +188,7 @@ exports.deletePhoto = async (req, res, next) => {
     if (!mongoose.isValidObjectId(req.params.id)) return bad(res, 'Invalid id');
     const member = await Member.findById(req.params.id);
     if (!member) return bad(res, 'Member not found', 404);
-    if (!canAccessDepartment(req.user, member.department)) return bad(res, 'Forbidden — that member belongs to another ministry', 403);
+    if (!canAccessMember(req.user, member)) return bad(res, 'Forbidden — that member is outside your access', 403);
     await MemberPhoto.deleteOne({ member: member._id });
     member.photoUrl = '';
     await member.save();
