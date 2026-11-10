@@ -6,7 +6,7 @@ const signToken = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: 
 
 const shapeUser = (user) => ({
   id: user._id, firstName: user.firstName, lastName: user.lastName,
-  email: user.email, role: user.role, status: user.status,
+  email: user.email, role: user.role, position: user.position || '', status: user.status,
   department: user.department && user.department.slug
     ? { id: user.department._id, name: user.department.name, slug: user.department.slug }
     : null
@@ -31,9 +31,10 @@ exports.register = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-// Positions a person may ask for when signing up. Admin-level roles are never offered here,
-// and the account stays 'pending' until a super admin approves it anyway.
-const SIGNUP_ROLES = ['usher_secretary', 'usher', 'counter_staff', 'viewer'];
+// Positions a person can pick when signing up. This is only a label shown to the admin.
+// The account gets the lowest access (viewer) and stays 'pending' until a super admin
+// approves it and chooses the real role.
+const POSITIONS = ['President', 'Vice President', 'Secretary', 'Treasurer', 'Leader', 'Assistant Leader', 'Pastor', 'Minister'];
 
 // POST /api/auth/signup — public. Creates a PENDING account (no token, cannot log in until approved).
 exports.signup = async (req, res, next) => {
@@ -44,8 +45,8 @@ exports.signup = async (req, res, next) => {
     const lastName  = String(req.body.lastName || '').trim().slice(0, 60);
     const email     = String(req.body.email || '').trim().toLowerCase();
     const password  = String(req.body.password || '');
-    const role      = String(req.body.role || '');
-    const departmentId = req.body.department || null;
+    const position  = String(req.body.position || '');
+    const departmentId = req.body.department || '';
 
     if (!firstName || !lastName || !email || !password) {
       return res.status(400).json({ success: false, message: 'First name, last name, email and password are required' });
@@ -56,21 +57,20 @@ exports.signup = async (req, res, next) => {
     if (password.length < 8) {
       return res.status(400).json({ success: false, message: 'Password must be at least 8 characters' });
     }
-    if (!SIGNUP_ROLES.includes(role)) {
+    if (!POSITIONS.includes(position)) {
       return res.status(400).json({ success: false, message: 'Please choose your position' });
     }
-    let department = null;
-    if (departmentId) {
-      department = await Department.findOne({ _id: departmentId, active: true }).select('_id');
-      if (!department) return res.status(400).json({ success: false, message: 'Please choose a valid ministry portal' });
-    }
+    // A ministry portal is required: self-registered accounts are never back-office (unscoped) accounts.
+    if (!departmentId) return res.status(400).json({ success: false, message: 'Please choose your portal' });
+    const department = await Department.findOne({ _id: departmentId, active: true }).select('_id');
+    if (!department) return res.status(400).json({ success: false, message: 'Please choose a valid ministry portal' });
     if (await User.findOne({ email })) {
       return res.status(400).json({ success: false, message: 'This email is already registered' });
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const user = await User.create({ firstName, lastName, email, passwordHash, role, department: department ? department._id : null, status: 'pending' });
-    await log({ user: null, action: 'create', module: 'users', recordId: user._id, details: `self-registration (pending): ${email}` });
+    const user = await User.create({ firstName, lastName, email, passwordHash, role: 'viewer', position, department: department._id, status: 'pending' });
+    await log({ user: null, action: 'create', module: 'users', recordId: user._id, details: `self-registration (pending): ${email} — ${position}` });
     res.status(201).json({ success: true, message: 'Request sent. An administrator will approve your account, then you can log in.' });
   } catch (err) { next(err); }
 };

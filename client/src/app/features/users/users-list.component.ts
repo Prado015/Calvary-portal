@@ -29,6 +29,10 @@ const blank = () => ({ firstName: '', lastName: '', email: '', password: '', rol
 
     <ng-template #rowActions let-u>
       <ng-container *ngIf="u.status === 'pending'; else normalActions">
+        <select [ngModel]="approveRole[u._id] || u.role" (ngModelChange)="approveRole[u._id] = $event" title="Access role to give this person"
+                class="text-xs mr-2 py-1.5 px-2 rounded-lg bg-navy-input border border-brand-border text-brand-text">
+          <option *ngFor="let r of roles" [value]="r.value">{{ r.label }}</option>
+        </select>
         <button (click)="setStatus(u, 'active')" class="text-xs px-3 py-1.5 mr-2 rounded-lg bg-brand-green/15 text-brand-green hover:bg-brand-green/25">Approve</button>
         <button (click)="setStatus(u, 'inactive')" class="text-xs px-3 py-1.5 rounded-lg bg-navy-input text-brand-error hover:bg-brand-error/10">Decline</button>
       </ng-container>
@@ -70,6 +74,7 @@ export class UsersListComponent implements OnInit {
   private deptApi = inject(DepartmentService);
 
   roles = ROLES;
+  approveRole: Record<string, string> = {};   // role chosen for each pending person before approving
   users: any[] = [];
   departments: DepartmentRecord[] = [];
   loading = true;
@@ -81,6 +86,7 @@ export class UsersListComponent implements OnInit {
   columns: TableColumn[] = [
     { key: 'name', label: 'Name', render: (u) => `${u.firstName} ${u.lastName}` },
     { key: 'email', label: 'Email' },
+    { key: 'position', label: 'Position', render: (u) => u.position || '—' },
     { key: 'role', label: 'Role', render: (u) => ROLES.find((r) => r.value === u.role)?.label || u.role },
     { key: 'department', label: 'Portal', render: (u) => u.department?.name || 'Admin back office' },
     { key: 'status', label: 'Status', badge: (u) => ({ status: u.status }) },
@@ -106,7 +112,9 @@ export class UsersListComponent implements OnInit {
   }
 
   setStatus(u: any, status: 'active' | 'inactive'): void {
-    this.api.update(u._id, { status }).subscribe({
+    const payload: any = { status };
+    if (status === 'active' && u.status === 'pending') payload.role = this.approveRole[u._id] || u.role;
+    this.api.update(u._id, payload).subscribe({
       next: () => this.load(),
       error: (e) => alert(e.error?.message || 'Update failed')
     });

@@ -13,6 +13,8 @@ const UserSchema = new mongoose.Schema({
   },
   // 'pending' = signed up on the login page, waiting for an admin to approve (cannot log in yet).
   status: { type: String, enum: ['active', 'inactive', 'pending'], default: 'active' },
+  // The position the person said they hold when signing up (a label for the admin, not a permission).
+  position: { type: String, trim: true, default: '' },
   // Which ministry this account belongs to. null = ushering/admin, unscoped.
   department: { type: mongoose.Schema.Types.ObjectId, ref: 'Department', default: null }
 }, { timestamps: true });

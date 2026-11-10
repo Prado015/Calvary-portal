@@ -29,13 +29,8 @@ export class LoginComponent implements OnInit {
   regError = '';
   regDone = '';
   regShowPassword = false;
-  reg = { firstName: '', lastName: '', email: '', password: '', confirm: '', role: 'usher_secretary', department: '' };
-  regRoles = [
-    { value: 'usher_secretary', label: 'Secretary / Portal Manager' },
-    { value: 'usher', label: 'Usher' },
-    { value: 'counter_staff', label: 'Counter Staff' },
-    { value: 'viewer', label: 'Viewer' }
-  ];
+  reg = { firstName: '', lastName: '', email: '', password: '', confirm: '', position: '', department: '' };
+  regPositions = ['President', 'Vice President', 'Secretary', 'Treasurer', 'Leader', 'Assistant Leader', 'Pastor', 'Minister'];
 
   quickModules = [
     { icon: 'user', label: 'Members' },
@@ -70,7 +65,7 @@ export class LoginComponent implements OnInit {
   }
 
   openRegister(): void {
-    this.reg = { firstName: '', lastName: '', email: '', password: '', confirm: '', role: 'usher_secretary', department: '' };
+    this.reg = { firstName: '', lastName: '', email: '', password: '', confirm: '', position: '', department: '' };
     this.regError = ''; this.regDone = ''; this.registerOpen = true;
   }
 
@@ -80,7 +75,7 @@ export class LoginComponent implements OnInit {
     if (this.reg.password !== this.reg.confirm) { this.regError = 'The two passwords do not match.'; return; }
     this.regLoading = true;
     const { confirm, ...payload } = this.reg;
-    this.auth.signup({ ...payload, department: payload.department || null }).subscribe({
+    this.auth.signup(payload).subscribe({
       next: (r) => { this.regLoading = false; this.regDone = r.message; },
       error: (e) => { this.regLoading = false; this.regError = e.error?.message || 'Could not send your request. Please try again.'; }
     });

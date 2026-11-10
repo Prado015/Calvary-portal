@@ -38,6 +38,8 @@ export async function buildAttendancePdf(input: AttendancePdfInput): Promise<{ d
   const [{ jsPDF }, tableModule] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
   // The production bundler can wrap this package differently from `ng serve`, so `default`
   // may be an object instead of the function. Pick whichever export is really callable.
+    // The production bundler can wrap this package differently from `ng serve`, so `default`
+  // may be an object instead of the function. Pick whichever export is really callable.
   const mod: any = tableModule;
   const autoTable: any = [mod.autoTable, mod.default, mod.default?.autoTable, mod.default?.default].find((f) => typeof f === 'function');
   if (!autoTable) throw new Error('jspdf-autotable did not load as a function');

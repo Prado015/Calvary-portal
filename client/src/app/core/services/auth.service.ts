@@ -6,6 +6,7 @@ export interface Department { id: string; name: string; slug: string; }
 export interface CurrentUser {
   id: string; firstName: string; lastName: string; email: string;
   role: string; status: string; department: Department | null;
+  position?: string;
   roleLabel?: string;                              // optional: only if the server sends it
   cellgroup?: { id: string; name?: string } | null; // set for cellgroup leaders
 }
@@ -43,7 +44,7 @@ export class AuthService {
   }
 
   /** Public sign-up from the login page. Creates a pending account; nobody is logged in. */
-  signup(payload: { firstName: string; lastName: string; email: string; password: string; role: string; department: string | null }): Observable<{ message: string }> {
+  signup(payload: { firstName: string; lastName: string; email: string; password: string; position: string; department: string }): Observable<{ message: string }> {
     return this.http.post<{ success: boolean; message: string }>('/api/auth/signup', payload);
   }
 
